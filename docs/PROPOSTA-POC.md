@@ -2,7 +2,7 @@
 
 **Data:** 2026-08-04
 **Duração de execução:** 2 semanas corridas
-**Repositório:** novo repositório dedicado no Bitbucket (não é o repositório de implementação do Agente POV)
+**Repositório:** novo repositório dedicado no GitHub (não é o repositório de implementação do Agente POV)
 
 ---
 
@@ -84,7 +84,7 @@ real da TIM — o que permite concluir a PoC em 2 semanas sem bloqueio externo.
 | Observabilidade (tracing de interação, latência, guardrails acionados) | Integração com Langfuse/OpenTelemetry gerenciados — usar equivalente local/open-source |
 | Vector store local (Chroma ou similar) simulando o papel do ADW | ADW real (Oracle Autonomous Data Warehouse) |
 | LLM via API (mesmo provider que a equipe já tiver credencial — OCI Generative AI se disponível, senão outro compatível) | Provisionamento de infraestrutura OCI dedicada |
-| Pipeline CI no Bitbucket (lint + testes + build) | Deploy contínuo em ambiente real |
+| Pipeline CI no GitHub Actions (lint + testes + build) | Deploy contínuo em ambiente real |
 
 ## 6. Infraestrutura
 
@@ -115,7 +115,7 @@ consolidada:
 | 5 | Checkpoint 1 — integração parcial (ingestão + RAG funcionando ponta a ponta) |
 | 6-8 | Guardrails + gateway + orquestração integrados |
 | 9 | Checkpoint 2 — primeira demo end-to-end via `docker-compose up` |
-| 10 | Ajustes finais + observabilidade + pipeline Bitbucket verde |
+| 10 | Ajustes finais + observabilidade + pipeline GitHub Actions verde |
 | — fim da semana 2 | **Demo final** para o arquiteto: `docker compose up` + roteiro de perguntas do `docs/CRITERIOS-DE-ACEITE.md` |
 
 ## 8. Critérios de sucesso
@@ -128,7 +128,7 @@ Ver checklist completo em `CRITERIOS-DE-ACEITE.md`. Resumo:
    em RAG, com fonte citável
 3. As 2 perguntas de guardrail (PII e concorrente) são corretamente
    bloqueadas/desviadas
-4. O pipeline `bitbucket-pipelines.yml` roda verde (lint + testes) a cada
+4. O pipeline `.github/workflows/ci.yml` roda verde (lint + testes) a cada
    push
 5. Cada papel do time entrega sua fatia de forma isolada e testável — ver
    `PAPEIS-E-ENTREGAVEIS.md`

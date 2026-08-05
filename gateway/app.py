@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from gateway.health import report_health
+from gateway.health import report_health  # noqa: E402
 
 app = FastAPI(title="PoC Agente de Catálogo")
 

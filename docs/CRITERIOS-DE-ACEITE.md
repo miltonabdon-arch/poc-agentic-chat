@@ -49,7 +49,7 @@ sem qualquer dependência de nuvem ou credencial de produção.
 ## 7. Pipeline CI
 
 - [ ] Último push na branch principal do repositório mostra pipeline verde
-      no Bitbucket (lint + testes)
+      no GitHub Actions (lint + testes)
 
 ## 8. Separação de papéis
 

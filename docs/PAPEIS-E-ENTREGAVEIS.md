@@ -68,8 +68,8 @@ simula o contrato de canal.
 | Channel Gateway (mock SSE) | `gateway/channel_gateway.py` | Normaliza uma requisição de teste para o formato `Interaction` (ver `ARQUITETURA.md`) — simula, sem implementar de fato, o formato do contrato SSE/TIA |
 | Runtime FastAPI | `gateway/app.py` | Expõe `POST /agent/interact`, delegando para o orquestrador; wrapper mínimo equivalente a `AgentRuntimeMixin` |
 | Health check | `gateway/health.py` | Endpoint `GET /health` |
-| Pipeline CI | `bitbucket-pipelines.yml` | Lint (`ruff`/`flake8`) + testes (`pytest`) + build da imagem Docker a cada push |
-| Testes | `tests/test_gateway.py` | Requisição válida retorna 200 com corpo esperado; requisição malformada retorna 400 explícito |
+| Pipeline CI | `.github/workflows/ci.yml` | Lint (`ruff`) + testes (`pytest`) + build da imagem Docker a cada push |
+| Testes | `tests/test_gateway.py` | Requisição válida retorna 200 com corpo esperado; requisição malformada retorna 422 (validação automática do Pydantic) |
 
 **Não é responsabilidade deste papel:** a lógica de negócio do agente nem o
 grafo de orquestração — apenas garantir que uma requisição HTTP chega

@@ -87,15 +87,20 @@ section: string             # nome do header (ex.: "Franquia")
 status: enum[active]         # esta PoC não implementa soft delete/curadoria
 ```
 
-**Achado de validação — contextual chunk header:** a primeira versão desta
-PoC vetorizava apenas o texto puro da seção (ex.: "40GB compartilhados entre
-até 4 linhas..."), sem o nome do plano. Isso causava confusão de retrieval
-entre planos com conteúdo parecido (ex.: perguntas sobre o "Plano Turbo
-40GB" retornavam chunks do "Plano Família Essencial", que também menciona
-"40GB"). A correção foi prefixar cada chunk com `"<nome do plano> - <seção>:
-<texto>"` antes de vetorizar — técnica conhecida como *contextual chunk
-header*. Qualquer ingestão de conteúdo real (TIM X/Acquia) no projeto
-principal deve considerar a mesma prática.
+**Atenção — risco de confusão de retrieval entre planos parecidos:** se o
+texto vetorizado de cada chunk for apenas o corpo puro da seção (ex.: "40GB
+compartilhados entre até 4 linhas..."), sem nenhuma referência a qual plano
+ele pertence, perguntas sobre um plano específico podem retornar por engano
+o chunk de outro plano com conteúdo textualmente parecido (ex.: uma
+pergunta sobre o "Plano Turbo 40GB" pode "casar" com o chunk do "Plano
+Família Essencial", que também cita "40GB"). `tests/test_ingestao.py`,
+`test_consulta_discrimina_planos_com_conteudo_parecido`, cobre exatamente
+esse cenário — se esse teste falhar, considere que o texto vetorizado
+provavelmente precisa carregar mais contexto do que só o corpo da seção
+(qual informação identifica de forma inequívoca a qual documento/plano
+aquele chunk pertence?). Qualquer ingestão de conteúdo real (TIM X/Acquia)
+no projeto principal também vai precisar lidar com esse mesmo tipo de
+ambiguidade.
 
 ## 4.1. Modelo de embedding
 
@@ -147,7 +152,7 @@ A API de Consulta RAG (`rag_pipeline/query_api.py`, entregue pelo Data
 Engineer mas consumida pelo AI Scientist na construção do prompt) expõe:
 
 ```python
-def query(text: str, threshold: float = 0.35) -> QueryResult:
+def query(text: str, threshold: float = ...) -> QueryResult:
     ...
 ```
 
@@ -165,14 +170,18 @@ Mesma estrutura de contrato usada em `pipeline-rag-base/design.md`
 (`QueryResult`) — abaixo do `threshold`, `found: false` é retornado
 explicitamente, nunca uma resposta inventada.
 
-**Threshold default (`0.65`):** calibrado empiricamente contra
-`data/catalogo/` — perguntas dentro do catálogo sintético pontuaram
-confidence 0.69-0.85, perguntas fora do catálogo pontuaram 0.39-0.61; 0.65
-separa os dois grupos nesta amostra específica. Este valor precisa ser
-recalibrado se o catálogo real (TIM X/Acquia) tiver uma distribuição de
-similaridade diferente — é um valor de PoC, não uma constante definitiva
-(mesma ressalva que `pipeline-rag-base/design.md` já registra como Open
-Question para o projeto real).
+**Threshold default:** não existe um valor universalmente correto — depende
+da métrica de distância escolhida em `vectorizer.get_collection()` e da
+distribuição real de similaridade do catálogo. Calibre empiricamente contra
+`data/catalogo/`: rode consultas dentro do catálogo sintético e fora dele,
+observe a faixa de `confidence_score` de cada grupo, e escolha um valor que
+separe os dois. `tests/test_ingestao.py`,
+`test_consulta_fora_do_catalogo_nao_inventa_resposta`, valida se a
+calibração escolhida está correta. Este valor precisa ser recalibrado se o
+catálogo real (TIM X/Acquia) tiver uma distribuição de similaridade
+diferente — é um valor de PoC, não uma constante definitiva (mesma ressalva
+que `pipeline-rag-base/design.md` já registra como Open Question para o
+projeto real).
 
 ## 8. Testes de ingestão (responsabilidade do Data Engineer)
 

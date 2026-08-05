@@ -22,7 +22,7 @@ base de construção do Agente de Planos e Ofertas (POV) da TIM.
 ## Estrutura do repositório
 
 ```
-poc-agent-platform-oci/
+poc-agentic-chat/
 ├── docs/                     # documentação (ver índice acima)
 │   └── diagrams/              # fontes .mmd dos diagramas de arquitetura
 ├── data/catalogo/             # dados sintéticos do catálogo (entrada da ingestão)
@@ -33,7 +33,7 @@ poc-agent-platform-oci/
 ├── tests/                       # testes por camada
 ├── scripts/                     # scripts de setup e demo local
 ├── docker-compose.yml            # sobe vector store local + app, sem dependência de nuvem
-├── bitbucket-pipelines.yml        # pipeline CI: lint + testes + build
+├── .github/workflows/ci.yml       # pipeline CI: lint + testes + build
 ├── requirements.txt
 └── .env.example
 ```
