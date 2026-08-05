@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant Cli as Cliente (mock)
+    participant GW as Channel Gateway
+    participant RT as Router (Orquestrador)
+    participant GR as Guardrails
+    participant AG as Agente (Prompt+LLM)
+    participant RAG as API de Consulta RAG
+    participant VS as Vector Store
+    participant OBS as Observability
+
+    Cli->>GW: Pergunta sobre catálogo (SSE-mock)
+    GW->>RT: Requisição normalizada
+    RT->>GR: check_input()
+    GR-->>RT: allow / block / mask
+    RT->>AG: invoca agente
+    AG->>RAG: query(texto, threshold)
+    RAG->>VS: busca por similaridade
+    VS-->>RAG: chunks + score
+    RAG-->>AG: QueryResult(found, chunk)
+    AG-->>RT: resposta gerada
+    RT->>GR: check_output()
+    GR-->>RT: allow / block / mask
+    RT-->>GW: resposta final
+    GW-->>Cli: resposta (SSE-mock)
+    RT-->>OBS: trace(interação, guardrails)

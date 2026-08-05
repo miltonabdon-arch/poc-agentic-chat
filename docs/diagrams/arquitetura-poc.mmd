@@ -1,0 +1,44 @@
+flowchart TB
+    Cliente["Cliente de teste (mock SSE)"]
+
+    subgraph DE_GROUP ["Data Engineer — Ingestão RAG"]
+        direction TB
+        D1["Extrator de texto"]
+        D2["Chunker"]
+        D3["Vetorizador"]
+        D4[("Vector Store local (mock de ADW)")]
+        D1 --> D2 --> D3 --> D4
+    end
+
+    subgraph AI_GROUP ["AI Scientist / LLM Specialist"]
+        direction TB
+        A1["API de Consulta RAG"]
+        A2["Prompt do Agente"]
+        A3["Guardrails Input/Output (SPEC-005-lite)"]
+        A4["Judge leve offline (SPEC-006-lite)"]
+    end
+
+    subgraph BE_GROUP ["Backend / Integração"]
+        direction TB
+        B1["Channel Gateway (SSE mock)"]
+        B2["AgentRuntimeMixin (FastAPI wrapper)"]
+    end
+
+    subgraph DEV_GROUP ["AI Developer Sr — Orquestração"]
+        direction TB
+        O1["Router / Grafo LangGraph"]
+        O2["Observability Tracer (OpenTelemetry local)"]
+    end
+
+    Cliente --> B1
+    B1 --> O1
+    O1 --> A3
+    A3 --> A2
+    A2 --> A1
+    A1 --> D4
+    A2 --> O1
+    O1 --> B2
+    B2 --> Cliente
+    O1 -.trace.-> O2
+    A3 -.eventos.-> O2
+    A4 -.amostragem offline.-> O2
