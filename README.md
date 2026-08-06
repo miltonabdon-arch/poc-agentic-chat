@@ -19,6 +19,7 @@ base de construção do Agente de Planos e Ofertas (POV) da TIM.
 | [`docs/INGESTAO.md`](docs/INGESTAO.md) | Documentação do pipeline de ingestão RAG — formato de dado, chunking, vetorização, como rodar |
 | [`docs/PAPEIS-E-ENTREGAVEIS.md`](docs/PAPEIS-E-ENTREGAVEIS.md) | O que cada papel do time entrega, dia a dia das 2 semanas |
 | [`docs/CRITERIOS-DE-ACEITE.md`](docs/CRITERIOS-DE-ACEITE.md) | Checklist de demonstração final |
+| [`STATE.md`](STATE.md) | Decisões, blockers e todos específicos desta PoC (resumo local — não substitui o `STATE.md` do projeto principal) |
 
 ## Estrutura do repositório
 
