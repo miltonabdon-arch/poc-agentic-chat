@@ -11,12 +11,13 @@
 O Escopo Técnico — Agente de Planos e Ofertas v1.2 define
 [`agent_platform_oci`](https://github.com/hoshikawa2/agent_platform_oci) (Oracle,
 Python/FastAPI/LangGraph, OCI Generative AI, ADW) como a base técnica
-obrigatória de construção do Agente POV (ver `PROJECT.md`, AD-007 em
-`STATE.md`). Uma análise documental do repositório público
-(`relatorio-aderencia-agent-platform-oci.md`) já confirmou que o framework é
-real, maduro (20 SPECs internas) e compatível com a arquitetura desenhada nos
-`.specs/features/*` — mas essa análise foi feita apenas lendo documentação
-remota, sem clonar o código nem rodar nada.
+obrigatória de construção do Agente POV (contexto completo em
+[`docs/referencias/PROJECT-resumo.md`](referencias/PROJECT-resumo.md), AD-007
+em `STATE.md`). Uma análise documental do repositório público (resumo em
+[`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`](referencias/relatorio-aderencia-agent-platform-oci-resumo.md))
+já confirmou que o framework é real, maduro (20 SPECs internas) e compatível
+com a arquitetura desenhada no projeto principal — mas essa análise foi
+feita apenas lendo documentação remota, sem clonar o código nem rodar nada.
 
 Esta PoC é o próximo passo natural: **rodar o framework de ponta a ponta**,
 com um caso de uso simplificado, para confirmar na prática o que hoje só foi
@@ -152,4 +153,6 @@ Ao fim das 2 semanas, o time entrega:
 - Um relatório curto (1-2 páginas, a produzir no fim da PoC) com achados
   técnicos sobre o `agent_platform_oci` — o que funcionou como esperado, o
   que exigiu adaptação, e qualquer gap encontrado em relação ao que a análise
-  documental (`relatorio-aderencia-agent-platform-oci.md`) havia previsto
+  documental (resumo em
+  [`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`](referencias/relatorio-aderencia-agent-platform-oci-resumo.md))
+  havia previsto

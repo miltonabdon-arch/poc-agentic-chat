@@ -20,6 +20,7 @@ base de construção do Agente de Planos e Ofertas (POV) da TIM.
 | [`docs/PAPEIS-E-ENTREGAVEIS.md`](docs/PAPEIS-E-ENTREGAVEIS.md) | O que cada papel do time entrega, dia a dia das 2 semanas |
 | [`docs/CRITERIOS-DE-ACEITE.md`](docs/CRITERIOS-DE-ACEITE.md) | Checklist de demonstração final |
 | [`STATE.md`](STATE.md) | Decisões, blockers e todos específicos desta PoC (resumo local — não substitui o `STATE.md` do projeto principal) |
+| [`docs/referencias/`](docs/referencias/) | Resumos de documentos do projeto principal citados pelos docs acima (não são specs desta PoC) |
 
 ## Estrutura do repositório
 
@@ -43,7 +44,8 @@ poc-agentic-chat/
 ## Requisitos
 
 - **Python 3.10+** (mesma faixa de versão do `agent_platform_oci` real,
-  confirmada em 3.12/3.13 no `relatorio-aderencia-agent-platform-oci.md`) —
+  confirmada em 3.12/3.13 — ver
+  [`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`](docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md)) —
   o código usa sintaxe de union types moderna (`str | None`), incompatível
   com Python 3.9. Se seu Python padrão for mais antigo, use `pyenv`/`venv`
   com uma versão 3.10+ antes de instalar as dependências.

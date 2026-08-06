@@ -3,10 +3,14 @@
 ## Visão geral
 
 A PoC reproduz, em escala reduzida e 100% local, os componentes centrais que
-o Escopo Técnico v1.2 e os designs já produzidos (`orquestrador-central-skeleton`,
-`pipeline-rag-base`, `matriz-guardrails`) esperam do `agent_platform_oci` no
-projeto real. Cada bloco abaixo é de responsabilidade de um papel do time —
-ver `PAPEIS-E-ENTREGAVEIS.md` para o detalhamento de entregas.
+o Escopo Técnico v1.2 e os designs já produzidos no projeto principal
+(resumos em
+[`docs/referencias/orquestrador-central-skeleton-design-resumo.md`](referencias/orquestrador-central-skeleton-design-resumo.md),
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md),
+[`docs/referencias/matriz-guardrails-spec-resumo.md`](referencias/matriz-guardrails-spec-resumo.md))
+esperam do `agent_platform_oci` no projeto real. Cada bloco abaixo é de
+responsabilidade de um papel do time — ver `PAPEIS-E-ENTREGAVEIS.md` para o
+detalhamento de entregas.
 
 ```mermaid
 flowchart TB
@@ -59,17 +63,17 @@ Fonte editável: [`diagrams/arquitetura-poc.mmd`](diagrams/arquitetura-poc.mmd).
 
 ## Mapeamento para as SPECs do `agent_platform_oci`
 
-A tabela abaixo replica o exercício já feito em
-`relatorio-aderencia-agent-platform-oci.md` (§3.1), mas agora ao nível dos
-componentes que esta PoC efetivamente implementa — é o que a PoC valida na
-prática.
+A tabela abaixo replica o exercício já feito no projeto principal (ver
+[`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`](referencias/relatorio-aderencia-agent-platform-oci-resumo.md),
+§3.1), mas agora ao nível dos componentes que esta PoC efetivamente
+implementa — é o que a PoC valida na prática.
 
 | Componente da PoC | Equivalente no framework real | O que a PoC simplifica |
 |---|---|---|
 | Router / Grafo LangGraph | Enterprise Router / Supervisor (LangGraph workflow) | Sem roteamento entre múltiplas jornadas — só um único fluxo de consulta |
 | Guardrails Input/Output | SPEC-005 (Guardrails) | Regras determinísticas simples (regex/lista) em vez do conjunto completo de classificadores de produção |
 | `AgentRuntimeMixin` (via wrapper FastAPI) | SPEC-002 (Agent Runtime) | Implementação mínima que expõe a interface esperada, sem todas as capacidades de runtime de produção |
-| Channel Gateway (mock SSE) | SPEC-009 (Channel Gateway) | Simula o contrato de entrada/saída, não implementa o contrato SSE/TIA real (aguardando "Adendo A", ver `integracao-sse-tia/spec.md`) |
+| Channel Gateway (mock SSE) | SPEC-009 (Channel Gateway) | Simula o contrato de entrada/saída, não implementa o contrato SSE/TIA real (aguardando "Adendo A", ver [`docs/referencias/integracao-sse-tia-spec-resumo.md`](referencias/integracao-sse-tia-spec-resumo.md)) |
 | Observability Tracer | SPEC-007 (Observabilidade — Langfuse + OpenTelemetry + eventos IC/NOC/GRL) | OpenTelemetry local (console/arquivo), sem Langfuse gerenciado nem eventos IC/NOC/GRL reais |
 | Judge leve offline | SPEC-006 (Evals) | Uma checagem simples por amostragem, não o Golden Standard Dataset completo (Deferred Idea em `STATE.md`) |
 | Vector Store local (Chroma) | ADW (Autonomous Data Warehouse), `SESSION_REPOSITORY_PROVIDER=autonomous` | Mock local sem persistência gerenciada nem recursos corporativos do ADW |
@@ -110,7 +114,12 @@ Fonte editável: [`diagrams/sequencia-consulta.mmd`](diagrams/sequencia-consulta
 
 Estes são os contratos que cada papel deve respeitar para que a integração
 do Checkpoint 1 (dia 5) funcione sem retrabalho — definidos no dia 1 do
-cronograma (kickoff técnico).
+cronograma (kickoff técnico). Ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md)
+e
+[`docs/referencias/orquestrador-central-skeleton-design-resumo.md`](referencias/orquestrador-central-skeleton-design-resumo.md)
+para os contratos completos do projeto principal, dos quais os desta PoC são
+um subconjunto simplificado.
 
 ### `QueryResult` (Data Engineer → AI Scientist)
 
@@ -140,10 +149,9 @@ timestamp: string
 ```
 
 Esses três contratos seguem deliberadamente o mesmo vocabulário dos designs
-já produzidos (`GuardrailResult`, `QueryResult` em
-`pipeline-rag-base/design.md` e `orquestrador-central-skeleton/design.md`) —
-qualquer aprendizado desta PoC sobre esses contratos é diretamente
-reaproveitável no projeto real.
+já produzidos no projeto principal (`GuardrailResult`, `QueryResult` — ver
+resumos linkados acima) — qualquer aprendizado desta PoC sobre esses
+contratos é diretamente reaproveitável no projeto real.
 
 ## Decisões técnicas (só as não óbvias)
 

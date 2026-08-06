@@ -49,8 +49,9 @@ seção 4): Controle, Família, Pré-pago.
 
 Como os documentos de entrada já são Markdown puro (não PDF/DOCX escaneado),
 a etapa de extração desta PoC **não inclui OCR** — isso é uma simplificação
-deliberada em relação ao `pipeline-rag-base/design.md` do projeto real, que
-precisa lidar com documentos reais de TIM X/Acquia em formatos variados.
+deliberada em relação ao design do pipeline RAG do projeto real, que precisa
+lidar com documentos reais de TIM X/Acquia em formatos variados (ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md)).
 
 `rag_pipeline/extractor.py` apenas lê o arquivo, separa front-matter (YAML)
 do corpo (Markdown), e retorna:
@@ -65,8 +66,9 @@ source_document_id: string   # nome do arquivo, sem extensão
 
 Estratégia: **split por header Markdown** (`##`) — cada seção do documento
 (Franquia, Fidelidade, Multa, Elegibilidade) vira um chunk independente.
-Esta é a mesma estratégia `markdown_header` já prevista como opção em
-`pipeline-rag-base/design.md` (Componente 3, Chunker).
+Esta é a mesma estratégia `markdown_header` já prevista como opção no design
+do pipeline RAG do projeto real (Componente 3, Chunker — ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md)).
 
 Por que esta estratégia e não sliding window: os documentos sintéticos são
 curtos e já estruturados por seção — dividir por header preserva o
@@ -109,8 +111,9 @@ Esta PoC usa `paraphrase-multilingual-MiniLM-L12-v2` (via
 (`all-MiniLM-L6-v2`, otimizado para inglês) — o modelo default demonstrou
 discriminação fraca entre nomes de planos em português durante a validação
 desta PoC. A escolha do modelo de embedding de produção continua sendo
-decisão do projeto real (Open Question já registrada em
-`pipeline-rag-base/design.md`).
+decisão do projeto real (Open Question já registrada no design do pipeline
+RAG — ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md)).
 
 ## 5. Vetorização e armazenamento
 
@@ -166,9 +169,11 @@ source_document_id: string | null
 confidence_score: number
 ```
 
-Mesma estrutura de contrato usada em `pipeline-rag-base/design.md`
-(`QueryResult`) — abaixo do `threshold`, `found: false` é retornado
-explicitamente, nunca uma resposta inventada.
+Mesma estrutura de contrato (`QueryResult`) usada no design do pipeline RAG
+do projeto real (ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md))
+— abaixo do `threshold`, `found: false` é retornado explicitamente, nunca
+uma resposta inventada.
 
 **Threshold default:** não existe um valor universalmente correto — depende
 da métrica de distância escolhida em `vectorizer.get_collection()` e da
@@ -180,8 +185,9 @@ separe os dois. `tests/test_ingestao.py`,
 calibração escolhida está correta. Este valor precisa ser recalibrado se o
 catálogo real (TIM X/Acquia) tiver uma distribuição de similaridade
 diferente — é um valor de PoC, não uma constante definitiva (mesma ressalva
-que `pipeline-rag-base/design.md` já registra como Open Question para o
-projeto real).
+que o design do pipeline RAG do projeto real já registra como Open Question
+— ver
+[`docs/referencias/pipeline-rag-base-design-resumo.md`](referencias/pipeline-rag-base-design-resumo.md)).
 
 ## 8. Testes de ingestão (responsabilidade do Data Engineer)
 
