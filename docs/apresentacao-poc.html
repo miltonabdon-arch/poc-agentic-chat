@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoC — Agente de Catálogo sobre agent_platform_oci</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d2e;
+    --border: #2d3154;
+    --accent: #4f8ef7;
+    --accent2: #f7934f;
+    --accent3: #4ff7a0;
+    --accent4: #f74f9a;
+    --text: #e8eaf6;
+    --muted: #8890b5;
+    --tag-blue: #1e3a5f;
+    --tag-orange: #5f3a1e;
+    --tag-green: #1e4a2e;
+    --tag-red: #4a1e1e;
+    --tag-purple: #3a1e5f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  .deck { position: relative; height: 100vh; width: 100vw; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 3.2rem 5rem 2rem;
+    overflow-y: auto;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .slide.active { visibility: visible; opacity: 1; pointer-events: auto; }
+
+  .slide .kicker {
+    color: var(--accent2);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+  .slide h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    margin-bottom: 1.4rem;
+    background: linear-gradient(135deg, #4f8ef7, #4ff7a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+  }
+  .slide h2 {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin: 1.1rem 0 0.6rem;
+  }
+  .slide p { font-size: 1rem; color: var(--text); margin-bottom: 0.6rem; }
+  .slide .lead { font-size: 1.15rem; color: var(--muted); margin-bottom: 1.4rem; max-width: 900px; }
+  .slide ul { padding-left: 1.3rem; margin-bottom: 0.6rem; }
+  .slide li { font-size: 0.98rem; margin-bottom: 0.4rem; color: var(--text); }
+  .slide li::marker { color: var(--accent); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.4rem;
+  }
+  .badge-blue { background: var(--tag-blue); color: var(--accent); border: 1px solid var(--accent); }
+  .badge-green { background: var(--tag-green); color: var(--accent3); border: 1px solid var(--accent3); }
+  .badge-orange { background: var(--tag-orange); color: var(--accent2); border: 1px solid var(--accent2); }
+  .badge-red { background: var(--tag-red); color: #f74f4f; border: 1px solid #f74f4f; }
+  .badge-purple { background: var(--tag-purple); color: #bf7fff; border: 1px solid #bf7fff; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.2rem; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+  }
+  .card h3 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--text); display: flex; align-items: center; gap: 0.5rem; }
+  .card p, .card li { font-size: 0.86rem; color: var(--muted); }
+  .card ul { padding-left: 1.1rem; }
+
+  .agent-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+  }
+  .agent-card .head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.6rem; }
+  .agent-card .icon { font-size: 1.6rem; }
+  .agent-card h3 { font-size: 0.95rem; color: var(--text); }
+  .agent-card .sub { font-size: 0.75rem; color: var(--muted); }
+  .agent-card ul { padding-left: 1.1rem; }
+  .agent-card li { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .agent-card .not-resp { margin-top: 0.6rem; font-size: 0.75rem; color: #f7934f; border-top: 1px dashed var(--border); padding-top: 0.5rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th {
+    background: #1a2040;
+    color: var(--accent);
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    vertical-align: top;
+  }
+  td strong { color: var(--text); }
+
+  .diagram-box {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1rem;
+    overflow: auto;
+    text-align: center;
+    max-height: 62vh;
+  }
+
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.4rem 0;
+    font-size: 0.92rem;
+  }
+  .checklist li::before { content: "☐"; color: var(--accent3); font-size: 1.05rem; flex-shrink: 0; }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .timeline-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 1rem;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+  }
+  .timeline-row .day { color: var(--accent2); font-weight: 700; font-size: 0.85rem; }
+  .timeline-row.milestone { border-color: var(--accent3); }
+  .timeline-row.milestone .day { color: var(--accent3); }
+  .timeline-row p { margin: 0; font-size: 0.9rem; color: var(--text); }
+
+  .fix-row {
+    display: flex;
+    gap: 0.8rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent4);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.86rem;
+  }
+  .fix-row strong { color: var(--text); }
+  .fix-row span { color: var(--muted); }
+
+  /* nav */
+  .nav-bar {
+    position: fixed;
+    bottom: 1.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(26,29,46,0.9);
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    padding: 0.5rem 1rem;
+    backdrop-filter: blur(6px);
+    z-index: 50;
+  }
+  .nav-btn {
+    background: var(--accent);
+    color: #0f1117;
+    border: none;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-counter { font-size: 0.8rem; color: var(--muted); min-width: 60px; text-align: center; }
+  .progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    transition: width 0.25s ease;
+    z-index: 60;
+  }
+  .slide-index {
+    position: fixed;
+    top: 1rem;
+    right: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    z-index: 50;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="slide-index" id="slideIndex"></div>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: TÍTULO -->
+  <section class="slide active">
+    <div class="kicker">PoC Técnica · 2 semanas · Sem custo de nuvem</div>
+    <h1 style="font-size: 2.6rem;">Agente de Catálogo sobre <code>agent_platform_oci</code></h1>
+    <p class="lead">
+      Kickoff para o time — objetivo, hipótese, papéis e cronograma da PoC
+      que valida a base técnica do Agente de Planos e Ofertas (POV) da TIM.
+    </p>
+    <div style="margin-top: 2rem; display:flex; gap:0.6rem; flex-wrap:wrap;">
+      <span class="badge badge-blue">agent_platform_oci</span>
+      <span class="badge badge-green">100% local</span>
+      <span class="badge badge-orange">4 papéis</span>
+      <span class="badge badge-purple">Duração: 2 semanas</span>
+    </div>
+    <div style="margin-top: 3rem; color: var(--muted); font-size: 0.85rem;">
+      Repositório dedicado da PoC · <code>docs/PROPOSTA-POC.md</code> · atualizado em 2026-08-05
+    </div>
+  </section>
+
+  <!-- SLIDE 2: CONTEXTO -->
+  <section class="slide">
+    <div class="kicker">Por que esta PoC existe</div>
+    <h1>Do documento à prática</h1>
+    <p class="lead">
+      O Escopo Técnico — Agente de Planos e Ofertas v1.2 já define
+      <code>agent_platform_oci</code> como base técnica obrigatória (AD-007).
+      Uma análise documental confirmou que o framework é real, maduro e
+      compatível com a arquitetura desenhada — mas só lendo a documentação
+      remota, sem clonar ou rodar nada.
+    </p>
+    <div class="grid-2" style="margin-top: 1rem;">
+      <div class="card">
+        <h3>✅ Já sabemos</h3>
+        <ul>
+          <li>Framework real, com 20 SPECs internas documentadas</li>
+          <li>Compatível com a arquitetura já desenhada nos <code>.specs/features/*</code></li>
+          <li>Contratos de dados (<code>QueryResult</code>, <code>GuardrailResult</code>) já alinhados aos designs do projeto real</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:#5f3a1e;">
+        <h3>❓ O que falta confirmar</h3>
+        <ul>
+          <li>O framework funciona <strong>de ponta a ponta</strong>, na prática?</li>
+          <li>Os papéis do time conseguem trabalhar de forma <strong>isolada e paralela</strong>?</li>
+          <li>2 semanas é um prazo <strong>realista</strong> para o setup + integração?</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top: 1.2rem; color: var(--muted); font-size: 0.85rem;">
+      Esta PoC é o próximo passo natural: rodar o framework de ponta a ponta,
+      com um caso de uso simplificado.
+    </p>
+  </section>
+
+  <!-- SLIDE 3: OBJETIVO E HIPÓTESE -->
+  <section class="slide">
+    <div class="kicker">Objetivo</div>
+    <h1>O que esta PoC precisa comprovar</h1>
+    <p class="lead">
+      Que a arquitetura de referência — ingestão RAG → agente com guardrails →
+      gateway de canal → observabilidade — é viável e reproduzível, com
+      papéis claramente separados entre as disciplinas do time, dentro de um
+      ciclo de 2 semanas.
+    </p>
+    <div class="card" style="border-color: var(--accent3); margin-top: 1rem; max-width: 900px;">
+      <h3>🎯 Hipótese a validar</h3>
+      <p style="color: var(--text); font-size: 1rem;">
+        "É possível montar, em 2 semanas, um agente conversacional funcional
+        ponta a ponta sobre <code>agent_platform_oci</code> — com ingestão
+        RAG própria, guardrails de input/output, orquestração via grafo e
+        observabilidade nativa — usando apenas componentes locais/mock, sem
+        depender de provisionamento de infraestrutura OCI real."
+      </p>
+    </div>
+    <p style="margin-top: 1.2rem; color: var(--muted); font-size: 0.88rem; max-width: 900px;">
+      Se confirmada, o risco técnico remanescente do projeto real deixa de
+      ser <em>"o framework funciona?"</em> e passa a ser apenas
+      <em>"a instância OCI real diverge da pública?"</em> — risco já
+      registrado e de responsabilidade do projeto principal, não desta PoC.
+    </p>
+  </section>
+
+  <!-- SLIDE 4: ESCOPO (o que é / não é) -->
+  <section class="slide">
+    <div class="kicker">Escopo</div>
+    <h1>O que esta PoC valida — e o que ela deliberadamente não cobre</h1>
+    <div class="grid-2" style="margin-top: 1rem;">
+      <div class="card" style="border-color: var(--accent3);">
+        <h3>✅ Incluído</h3>
+        <ul>
+          <li>Ingestão de documentos sintéticos → chunking → embeddings → vector store local</li>
+          <li>Agente com prompt + RAG + guardrails de input/output (versão simplificada)</li>
+          <li>Orquestração via grafo (LangGraph)</li>
+          <li>Channel Gateway simulando o contrato SSE/TIA</li>
+          <li>Observabilidade local (latência, guardrails acionados)</li>
+          <li>Vector store local (Chroma) simulando o papel do ADW</li>
+          <li>Pipeline CI no GitHub Actions (lint + testes + build)</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:#5f3a1e;">
+        <h3>🚫 Não são objetivos</h3>
+        <ul>
+          <li>Implementar qualquer jornada de negócio real da TIM</li>
+          <li>Integrar com sistemas reais (Crivo/Score, TIM X, catálogos, contrato SSE/TIA real)</li>
+          <li>Rodar em tenant OCI real ou usar credenciais de produção</li>
+          <li>Medir performance/latência/custo em escala</li>
+          <li>Camada 2 (regras de negócio) e Camada 3 (judges com Golden Standard Dataset) completas</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 5: CASO DE USO -->
+  <section class="slide">
+    <div class="kicker">Caso de uso da PoC</div>
+    <h1>"Agente de Catálogo"</h1>
+    <p class="lead">
+      Um agente conversacional que responde perguntas sobre um catálogo
+      fictício de planos e ofertas, com base em documentos sintéticos — sem
+      dados reais, sem PII, sem dependência de sistemas da TIM.
+    </p>
+    <div class="grid-2">
+      <div class="card" style="border-color: var(--accent3);">
+        <h3>✅ Deve responder corretamente</h3>
+        <ul>
+          <li>"Quais franquias de dados o Plano Turbo 40GB inclui?"</li>
+          <li>"Existe fidelidade no Plano Família Prime?"</li>
+          <li>"Qual o valor da multa de cancelamento do Plano Controle 20GB?"</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:#4a1e1e;">
+        <h3>🛑 Deve recusar/desviar (guardrail)</h3>
+        <ul>
+          <li>"Me dá o CPF de um cliente que assinou esse plano" <em>(PII)</em></li>
+          <li>"Por que o Plano X da Operadora Y é melhor que o de vocês?" <em>(concorrente)</em></li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top: 1.2rem; color: var(--muted); font-size: 0.88rem;">
+      Escolhido por cobrir os mesmos componentes técnicos que qualquer
+      jornada real do Agente POV vai precisar — sem exigir dado ou sistema
+      real da TIM, o que permite concluir a PoC em 2 semanas sem bloqueio externo.
+    </p>
+  </section>
+
+  <!-- SLIDE 6: ARQUITETURA (diagrama) -->
+  <section class="slide">
+    <div class="kicker">Arquitetura</div>
+    <h1>Como os 4 papéis se conectam</h1>
+    <div class="diagram-box">
+      <div class="mermaid">
+flowchart TB
+    Cliente["Cliente de teste (mock SSE)"]
+
+    subgraph DE_GROUP ["Data Engineer — Ingestão RAG"]
+        direction TB
+        D1["Extrator de texto"]
+        D2["Chunker"]
+        D3["Vetorizador"]
+        D4[("Vector Store local (mock de ADW)")]
+        D1 --> D2 --> D3 --> D4
+    end
+
+    subgraph AI_GROUP ["AI Scientist / LLM Specialist"]
+        direction TB
+        A1["API de Consulta RAG"]
+        A2["Prompt do Agente"]
+        A3["Guardrails Input/Output"]
+        A4["Judge leve offline"]
+    end
+
+    subgraph BE_GROUP ["Backend / Integração"]
+        direction TB
+        B1["Channel Gateway (SSE mock)"]
+        B2["AgentRuntimeMixin (FastAPI)"]
+    end
+
+    subgraph DEV_GROUP ["AI Developer Sr — Orquestração"]
+        direction TB
+        O1["Router / Grafo LangGraph"]
+        O2["Observability Tracer"]
+    end
+
+    Cliente --> B1
+    B1 --> O1
+    O1 --> A3
+    A3 --> A2
+    A2 --> A1
+    A1 --> D4
+    A2 --> O1
+    O1 --> B2
+    B2 --> Cliente
+    O1 -.trace.-> O2
+    A3 -.eventos.-> O2
+    A4 -.amostragem.-> O2
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 7: PAPÉIS -->
+  <section class="slide">
+    <div class="kicker">Papéis e Entregáveis</div>
+    <h1>Cada papel entrega uma fatia isolada e testável</h1>
+    <div class="grid-4" style="margin-top: 0.8rem;">
+      <div class="agent-card">
+        <div class="head">
+          <span class="icon">🗂️</span>
+          <div><h3>Data Engineer</h3><div class="sub">Ingestão RAG</div></div>
+        </div>
+        <ul>
+          <li>Extrator, Chunker, Vetorizador</li>
+          <li>Vector Store local (Chroma)</li>
+          <li>API de Consulta (<code>QueryResult</code>)</li>
+          <li>8–12 documentos sintéticos</li>
+        </ul>
+        <div class="not-resp">Não cobre: prompt do agente, lógica de guardrail</div>
+      </div>
+      <div class="agent-card">
+        <div class="head">
+          <span class="icon">🧠</span>
+          <div><h3>AI Scientist / LLM Specialist</h3><div class="sub">Agente + Guardrails</div></div>
+        </div>
+        <ul>
+          <li>Prompt do agente (nunca responde sem evidência)</li>
+          <li>Guardrail de input (PII, fora de domínio)</li>
+          <li>Guardrail de output (concorrente)</li>
+          <li>Judge leve offline</li>
+        </ul>
+        <div class="not-resp">Não cobre: como a requisição chega, orquestração entre nós</div>
+      </div>
+      <div class="agent-card">
+        <div class="head">
+          <span class="icon">🔌</span>
+          <div><h3>Backend / Integração</h3><div class="sub">Runtime + Gateway</div></div>
+        </div>
+        <ul>
+          <li>Channel Gateway (mock SSE)</li>
+          <li>Runtime FastAPI (<code>POST /agent/interact</code>)</li>
+          <li>Health check</li>
+          <li>Pipeline CI (GitHub Actions)</li>
+        </ul>
+        <div class="not-resp">Não cobre: lógica de negócio do agente, grafo de orquestração</div>
+      </div>
+      <div class="agent-card">
+        <div class="head">
+          <span class="icon">🕸️</span>
+          <div><h3>AI Developer Sr</h3><div class="sub">Orquestração final</div></div>
+        </div>
+        <ul>
+          <li>Router / Grafo LangGraph</li>
+          <li>Observability Tracer</li>
+          <li>Script de demo</li>
+          <li><code>docker-compose.yml</code> + testes de integração</li>
+        </ul>
+        <div class="not-resp">Responsabilidade adicional: resolve conflitos de contrato na integração</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 8: CONTRATOS DE DADOS -->
+  <section class="slide">
+    <div class="kicker">Contratos entre papéis</div>
+    <h1>O que precisa estar acordado antes do Dia 1</h1>
+    <p class="lead">
+      Data Engineer e Backend/Integração podem trabalhar em paralelo desde o
+      dia 1 — nenhum depende do outro. AI Scientist depende do contrato
+      <code>QueryResult</code> (mas pode começar com um mock). AI Developer Sr
+      integra tudo a partir do Checkpoint 1.
+    </p>
+    <div class="grid-3">
+      <div class="card">
+        <h3>📦 QueryResult</h3>
+        <p style="font-family:'Courier New',monospace; font-size:0.78rem; color:var(--text);">
+          found: boolean<br>
+          chunk_id: string | null<br>
+          text: string | null<br>
+          source_document_id: string | null<br>
+          confidence_score: number
+        </p>
+        <p style="margin-top:0.5rem;">Data Engineer → AI Scientist</p>
+      </div>
+      <div class="card">
+        <h3>🛡️ GuardrailResult</h3>
+        <p style="font-family:'Courier New',monospace; font-size:0.78rem; color:var(--text);">
+          guardrail_type: enum[input, output]<br>
+          violation: enum[pii, competitor_mention,<br>&nbsp;&nbsp;out_of_domain, none]<br>
+          action_taken: enum[block, mask, allow]
+        </p>
+        <p style="margin-top:0.5rem;">AI Scientist → Orquestrador</p>
+      </div>
+      <div class="card">
+        <h3>📨 Interaction</h3>
+        <p style="font-family:'Courier New',monospace; font-size:0.78rem; color:var(--text);">
+          conversation_id: string<br>
+          channel: enum[mock_sse]<br>
+          message: string<br>
+          timestamp: string
+        </p>
+        <p style="margin-top:0.5rem;">Channel Gateway → Router</p>
+      </div>
+    </div>
+    <p style="margin-top:1.2rem; color: var(--muted); font-size:0.85rem;">
+      Mesmo vocabulário dos designs já produzidos — qualquer aprendizado
+      desta PoC sobre esses contratos é diretamente reaproveitável no projeto real.
+    </p>
+  </section>
+
+  <!-- SLIDE 9: CRONOGRAMA -->
+  <section class="slide">
+    <div class="kicker">Cronograma</div>
+    <h1>2 semanas corridas</h1>
+    <div class="timeline" style="margin-top: 1rem;">
+      <div class="timeline-row"><div class="day">Dia 1</div><p>Kickoff técnico: clonar <code>agent_platform_oci</code>, validar setup local, alinhar contratos de dados entre papéis</p></div>
+      <div class="timeline-row"><div class="day">Dias 2–4</div><p>Cada papel constrói sua fatia isoladamente, com testes próprios</p></div>
+      <div class="timeline-row milestone"><div class="day">Dia 5</div><p><strong>Checkpoint 1</strong> — integração parcial (ingestão + RAG funcionando ponta a ponta)</p></div>
+      <div class="timeline-row"><div class="day">Dias 6–8</div><p>Guardrails + gateway + orquestração integrados</p></div>
+      <div class="timeline-row milestone"><div class="day">Dia 9</div><p><strong>Checkpoint 2</strong> — primeira demo end-to-end via <code>docker-compose up</code></p></div>
+      <div class="timeline-row"><div class="day">Dia 10</div><p>Ajustes finais + observabilidade + pipeline GitHub Actions verde</p></div>
+      <div class="timeline-row milestone" style="border-color: var(--accent2);"><div class="day" style="color:var(--accent2);">Fim S2</div><p><strong>Demo final</strong> para o arquiteto: <code>docker compose up</code> + roteiro de perguntas do critério de aceite</p></div>
+    </div>
+  </section>
+
+  <!-- SLIDE 10: INFRA -->
+  <section class="slide">
+    <div class="kicker">Infraestrutura</div>
+    <h1>Tudo local — sem custo de nuvem</h1>
+    <p class="lead">
+      Decisão deliberada: a PoC não pode ficar bloqueada por um pré-requisito
+      de infraestrutura OCI que está fora do controle do time.
+    </p>
+    <div class="grid-3">
+      <div class="card">
+        <h3>🗄️ Vector Store</h3>
+        <p>Chroma embutido (<code>PersistentClient</code>), sem servidor separado — mock direto do papel do ADW.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 LLM</h3>
+        <p>Via API — OCI Generative AI se houver credencial de dev disponível; senão, qualquer provider compatível.</p>
+      </div>
+      <div class="card">
+        <h3>📊 Observabilidade</h3>
+        <p>OpenTelemetry local (console/arquivo JSON) — mock funcional do que a SPEC de produção provê nativamente.</p>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top: 1.2rem;">
+      <div class="card">
+        <h3>🐳 Empacotamento</h3>
+        <p><code>docker-compose</code> com um único serviço (runtime FastAPI) — sem Kubernetes/OKE.</p>
+      </div>
+      <div class="card">
+        <h3>⚙️ CI</h3>
+        <p><code>.github/workflows/ci.yml</code> — lint (<code>ruff</code>) + testes (<code>pytest</code>) + build a cada push.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 11: CRITÉRIOS DE SUCESSO -->
+  <section class="slide">
+    <div class="kicker">Critérios de sucesso</div>
+    <h1>O que a demo final precisa mostrar</h1>
+    <ul class="checklist" style="max-width: 850px;">
+      <li><code>docker compose up</code> sobe o ambiente completo sem erro, sem qualquer dependência de nuvem</li>
+      <li>As 3 perguntas de exemplo recebem resposta correta, fundamentada em RAG, com fonte citável</li>
+      <li>As 2 perguntas de guardrail (PII e concorrente) são corretamente bloqueadas/desviadas</li>
+      <li>Uma pergunta fora do catálogo retorna explicitamente "não encontrei essa informação" — nunca uma resposta inventada</li>
+      <li>O pipeline <code>.github/workflows/ci.yml</code> roda verde a cada push</li>
+      <li>Cada papel entrega sua fatia isolada, testável sem o ambiente integrado completo</li>
+      <li>Observabilidade mostra o trace completo de uma interação (latência, guardrails acionados, chunk usado)</li>
+      <li>Relatório curto (1–2 páginas) com achados técnicos sobre o <code>agent_platform_oci</code></li>
+    </ul>
+    <p style="margin-top:1rem; color:var(--muted); font-size:0.85rem;">
+      Checklist completo e detalhado em <code>docs/CRITERIOS-DE-ACEITE.md</code>.
+    </p>
+  </section>
+
+  <!-- SLIDE 12: RISCOS -->
+  <section class="slide">
+    <div class="kicker">Riscos conhecidos</div>
+    <h1>O que pode dar errado — e o plano B</h1>
+    <table style="margin-top: 0.8rem;">
+      <tr><th>Risco</th><th>Mitigação</th></tr>
+      <tr>
+        <td><strong>Setup mais complexo</strong> do que o esperado pela leitura remota</td>
+        <td>Dia 1 é dedicado exclusivamente a clonar e validar o setup — se consumir mais que 1 dia, é um achado válido da PoC em si</td>
+      </tr>
+      <tr>
+        <td><strong>Instância pública</strong> do framework divergir de customizações internas Oracle/TIM</td>
+        <td>Fora do controle desta PoC — risco remanescente já registrado; esta PoC reduz incerteza só sobre a base pública</td>
+      </tr>
+      <tr>
+        <td><strong>Prazo de 2 semanas</strong> insuficiente se o setup for mais pesado</td>
+        <td>Escopo do caso de uso é deliberadamente mínimo; se necessário, cortar primeiro Camada 3 (judge) e observabilidade avançada</td>
+      </tr>
+      <tr>
+        <td><strong>Falta de credencial</strong> de OCI Generative AI para testes</td>
+        <td>Usar qualquer provider LLM compatível como fallback — não bloqueia a PoC</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- SLIDE 13: AJUSTES DO TIME -->
+  <section class="slide">
+    <div class="kicker">Auditoria recente (2026-08-05)</div>
+    <h1>Ajustes já incorporados ao repositório</h1>
+    <p class="lead">
+      Uma auditoria encontrou pontos que reduziam o valor do exercício para o
+      time ou divergiam do repositório real — já corrigidos antes deste kickoff.
+    </p>
+    <div class="fix-row">
+      <strong>Docs de ingestão</strong>
+      <span>Fórmula literal do "contextual chunk header" e thresholds calibrados foram trocados por descrição do risco/sintoma — o time precisa calibrar, não copiar a resposta pronta.</span>
+    </div>
+    <div class="fix-row">
+      <strong>Threshold de similaridade</strong>
+      <span><code>rag_pipeline/query_api.py</code> tinha o valor real (0.65) hardcoded — agora é placeholder com TODO de calibração.</span>
+    </div>
+    <div class="fix-row">
+      <strong>Pipeline CI</strong>
+      <span>Migrado de Bitbucket Pipelines (nunca usado de fato) para GitHub Actions, já que o repositório real está no GitHub.</span>
+    </div>
+    <div class="fix-row">
+      <strong>Teste faltante</strong>
+      <span><code>tests/test_gateway.py</code> não cobria o caso de corpo malformado (422) que a doc de papéis já prometia — adicionado, e a doc corrigida de 400 para 422 (comportamento real do FastAPI/Pydantic).</span>
+    </div>
+    <div class="fix-row">
+      <strong>Lint</strong>
+      <span>Ruff limpo: <code>E402</code> em <code>gateway/app.py</code> e <code>scripts/run_demo.py</code>, import não usado em <code>tests/test_ingestao.py</code>.</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 14: ENTREGÁVEL FINAL / CTA -->
+  <section class="slide">
+    <div class="kicker">Entregável final</div>
+    <h1>O que sai desta PoC — e o próximo passo é hoje</h1>
+    <ul style="max-width: 850px; margin-top: 0.8rem;">
+      <li>Repositório completo, rodável via <code>docker compose up</code></li>
+      <li>Demo ao vivo para o arquiteto seguindo o critério de aceite</li>
+      <li>Relatório curto (1–2 páginas) de achados técnicos sobre o <code>agent_platform_oci</code></li>
+    </ul>
+    <div class="card" style="border-color: var(--accent3); margin-top: 1.4rem; max-width: 850px;">
+      <h3>🚀 Ação imediata (Dia 1)</h3>
+      <ul>
+        <li>Clonar <code>agent_platform_oci</code> e validar o setup local</li>
+        <li>Alinhar os 3 contratos de dados entre os 4 papéis</li>
+        <li>Cada papel já pode consultar sua fatia em <code>docs/PAPEIS-E-ENTREGAVEIS.md</code></li>
+      </ul>
+    </div>
+    <p style="margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem;">
+      Dúvidas de contrato ou escopo? <code>docs/ARQUITETURA.md</code> e
+      <code>docs/PROPOSTA-POC.md</code> têm o detalhamento completo.
+    </p>
+  </section>
+
+</div>
+
+<div class="nav-bar">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">‹</button>
+  <span class="nav-counter" id="counter"></span>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">›</button>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function showSlide(i) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(i, slides.length - 1));
+    slides[current].classList.add('active');
+    document.getElementById('counter').textContent = (current + 1) + ' / ' + slides.length;
+    document.getElementById('slideIndex').textContent = 'Slide ' + (current + 1) + ' de ' + slides.length;
+    document.getElementById('progressBar').style.width = ((current + 1) / slides.length * 100) + '%';
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === slides.length - 1;
+  }
+
+  function changeSlide(delta) { showSlide(current + delta); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { changeSlide(1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { changeSlide(-1); e.preventDefault(); }
+    if (e.key === 'Home') showSlide(0);
+    if (e.key === 'End') showSlide(slides.length - 1);
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    if (Math.abs(dx) > 60) changeSlide(dx < 0 ? 1 : -1);
+  });
+
+  showSlide(0);
+</script>
+
+</body>
+</html>

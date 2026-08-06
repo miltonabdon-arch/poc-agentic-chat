@@ -13,6 +13,7 @@ base de construção do Agente de Planos e Ofertas (POV) da TIM.
 
 | Documento | Conteúdo |
 |---|---|
+| [`docs/apresentacao-poc.html`](docs/apresentacao-poc.html) | **Apresentação de kickoff** (slides navegáveis) — abrir no navegador para o time |
 | [`docs/PROPOSTA-POC.md`](docs/PROPOSTA-POC.md) | Objetivo, hipótese, escopo, cronograma de 2 semanas, critérios de sucesso |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Desenho de arquitetura, mapeamento para as SPECs do `agent_platform_oci`, diagramas |
 | [`docs/INGESTAO.md`](docs/INGESTAO.md) | Documentação do pipeline de ingestão RAG — formato de dado, chunking, vetorização, como rodar |
