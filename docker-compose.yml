@@ -4,9 +4,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LLM_BASE_URL=${LLM_BASE_URL}
-      - LLM_API_KEY=${LLM_API_KEY}
-      - LLM_MODEL=${LLM_MODEL}
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - OCI_GENAI_BASE_URL=${OCI_GENAI_BASE_URL}
+      - OCI_GENAI_API_KEY=${OCI_GENAI_API_KEY}
+      - OCI_GENAI_MODEL=${OCI_GENAI_MODEL}
+      - CHROMA_DATA_PATH=${CHROMA_DATA_PATH:-./chroma_data}
     volumes:
       - ./chroma_data:/app/chroma_data
       - ./data:/app/data

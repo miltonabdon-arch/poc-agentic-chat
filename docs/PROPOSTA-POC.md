@@ -94,15 +94,26 @@ depender do provisionamento OCI da TIM (ainda não confirmado, ver B-006/AD-007
 em `STATE.md`). Isso é uma decisão deliberada: a PoC não pode ficar bloqueada
 por um pré-requisito de infraestrutura que está fora do controle do time.
 
+**Atualização (AD-008 em `STATE.md`):** esta PoC integra de fato o pacote
+`agent_framework` do repositório público `agent_platform_oci` (instalado via
+`pip install git+.../agent_platform_oci.git#subdirectory=libs/agent_framework`
+— ver `requirements.txt`), não apenas bibliotecas genéricas usadas por ele.
+Ver `docs/ARQUITETURA.md`, tabela "Mapeamento para as SPECs", para o detalhe
+de quais componentes usam classes/rails reais do framework e quais mantêm
+implementação própria (com racional).
+
 - **Vector store:** Chroma (embutido, roda em processo local) — mock direto
-  do papel do ADW no pipeline RAG
-- **LLM:** chamado via API. Se houver credencial de OCI Generative AI de
-  desenvolvimento disponível, usar; caso contrário, qualquer provider
-  compatível com a interface do framework serve para os fins desta PoC (a
-  escolha do provider real de produção continua sendo decisão do projeto
-  principal, não desta PoC)
-- **Observabilidade:** OpenTelemetry local (ex.: exportado para console/arquivo
-  JSON) — mock funcional do que SPEC-007 provê nativamente
+  do papel do ADW no pipeline RAG. Decisão deliberada de não usar o
+  `SQLiteVectorStore` real do framework (ver `docs/ARQUITETURA.md`, "Decisões
+  técnicas")
+- **LLM:** `agent_framework.llm.providers.create_llm()` real, com
+  `LLM_PROVIDER=mock` por padrão (sem credencial de nuvem — funciona out of
+  the box). Se houver credencial de OCI Generative AI de desenvolvimento
+  disponível, trocar para `oci_openai` (a escolha do provider real de
+  produção continua sendo decisão do projeto principal, não desta PoC)
+- **Observabilidade:** `agent_framework.observability.otel.OpenTelemetryProvider`
+  real, local por padrão (`ENABLE_OTEL=false` é no-op seguro) — usa o
+  provider nativo do framework em vez de montar OpenTelemetry solto
 
 ## 7. Cronograma (2 semanas)
 
