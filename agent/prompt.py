@@ -17,10 +17,26 @@ Contrato:
 
 from rag_pipeline.models import QueryResult
 
+_NOT_FOUND_MSG = (
+    "Não encontrei essa informação no catálogo de planos e ofertas disponível. "
+    "Por favor, consulte um atendente ou acesse o site oficial da TIM para mais detalhes."
+)
+
 
 def build_prompt(question: str, query_result: QueryResult) -> str | None:
-    raise NotImplementedError
+    if not query_result.found:
+        return None
+    return (
+        "Você é um assistente de voz especializado em planos e ofertas da TIM. "
+        "Responda APENAS com base na evidência abaixo. "
+        "Escreva em prosa fluida, como se estivesse falando — sem listas, sem marcadores, "
+        "sem markdown, sem colchetes ou símbolos especiais. "
+        "Refira-se ao plano pelo nome natural presente na evidência, nunca pelo ID técnico.\n\n"
+        f"[CONTEXTO INTERNO — não mencionar na resposta] fonte: {query_result.source_document_id}\n"
+        f"Evidência: {query_result.text}\n\n"
+        f"Pergunta do cliente: {question}"
+    )
 
 
 def not_found_response() -> str:
-    raise NotImplementedError
+    return _NOT_FOUND_MSG
