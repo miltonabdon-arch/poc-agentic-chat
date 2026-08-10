@@ -17,9 +17,12 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from gateway.channel_gateway import normalize
-from gateway.health import report_health
-from orchestrator.graph import run_interaction
+# Os imports abaixo precisam vir depois de load_dotenv(): carregam, de forma
+# transitiva, agent_framework.config.settings (lido na importação) - ver
+# agent/llm_client.py e orchestrator/tracer.py.
+from gateway.channel_gateway import normalize  # noqa: E402
+from gateway.health import report_health  # noqa: E402
+from orchestrator.graph import run_interaction  # noqa: E402
 
 app = FastAPI(title="PoC Agente de Catálogo")
 
