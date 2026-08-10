@@ -1,7 +1,5 @@
 """Testes do judge leve offline (agent/judge.py)."""
 
-import pytest
-
 from agent.judge import judge_batch, JudgeFinding, _NOT_FOUND_MARKER, _MIN_RESPONSE_CHARS
 
 
