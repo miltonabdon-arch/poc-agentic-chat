@@ -1,5 +1,7 @@
 """Testes do gateway (Backend/Integracao) - docs/PAPEIS-E-ENTREGAVEIS.md."""
 
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from gateway.app import app
@@ -23,6 +25,18 @@ def test_normalize_gera_interaction_com_conversation_id():
 def test_normalize_reusa_conversation_id_quando_fornecido():
     interaction = normalize("Segunda pergunta", conversation_id="abc-123")
     assert interaction.session_id == "abc-123"
+
+
+def test_interact_valido_retorna_200():
+    with patch("gateway.app.run_interaction", return_value="Plano Turbo tem 40 GB."):
+        response = client.post(
+            "/agent/interact",
+            json={"message": "Qual a franquia do plano turbo?"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body["conversation_id"], str)
+    assert body["response"] == "Plano Turbo tem 40 GB."
 
 
 def test_interact_com_corpo_malformado_retorna_422():
