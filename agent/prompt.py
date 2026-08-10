@@ -4,6 +4,9 @@ Regra central: sem evidencia (found=False), nunca inventar - responder
 explicitamente que a informacao nao foi encontrada. Mesma filosofia de
 'sem evidencia, sem invencao' de pipeline-rag-base/design.md.
 
+TODO (AI Scientist / LLM Specialist): implementar build_prompt() e
+not_found_response() para satisfazer os testes de tests/test_agent.py.
+
 Contrato:
 - build_prompt() retorna None se query_result.found for False (o
   orquestrador deve usar not_found_response() nesse caso, sem chamar o LLM)
@@ -16,17 +19,8 @@ from rag_pipeline.models import QueryResult
 
 
 def build_prompt(question: str, query_result: QueryResult) -> str | None:
-    if not query_result.found:
-        return None
-
-    return (
-        "Responda a pergunta do cliente usando exclusivamente o contexto "
-        "abaixo, extraído do documento de origem. Sempre cite a fonte "
-        f"(source_document_id: {query_result.source_document_id}) na resposta.\n\n"
-        f"Contexto:\n{query_result.text}\n\n"
-        f"Pergunta: {question}"
-    )
+    raise NotImplementedError
 
 
 def not_found_response() -> str:
-    return "Não encontrei essa informação no nosso catálogo de planos e ofertas."
+    raise NotImplementedError

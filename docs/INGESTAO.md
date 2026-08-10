@@ -117,20 +117,15 @@ RAG — ver
 
 ## 5. Vetorização e armazenamento
 
-- **Modelo de embedding:** `paraphrase-multilingual-MiniLM-L12-v2` via
-  `sentence-transformers` (modelo local, sem chamada de API) — ver seção
-  4.1 para o racional. Não usar o modelo default do Chroma
-  (`all-MiniLM-L6-v2`, otimizado para inglês)
+- **Modelo de embedding:** qualquer modelo de embedding compatível com a API
+  de LLM configurada (ver `.env.example`) — a escolha exata do modelo não é
+  uma decisão crítica desta PoC, qualquer modelo de embedding de propósito
+  geral serve
 - **Armazenamento:** Chroma local (arquivo em `./chroma_data/`, criado pelo
-  `docker-compose`), representando o papel do ADW no design real.
-  Decisão deliberada de **não** usar `agent_framework.rag.vector_store`
-  (`SQLiteVectorStore`) do framework real: seu `add_texts()` sempre gera um
-  novo id (`uuid4`), sem upsert por chave externa estável — incompatível
-  com o requisito de reingestão idempotente abaixo (ver
-  `rag_pipeline/vectorizer.py` para o comentário completo)
+  `docker-compose`), representando o papel do ADW no design real
 - Cada chunk vetorizado é inserido com o `chunk_id` como identificador único
-  — reinserir o mesmo `chunk_id` substitui o chunk anterior (upsert nativo
-  do Chroma), o que torna a ingestão idempotente
+  — reinserir o mesmo `chunk_id` substitui o chunk anterior (upsert), o que
+  torna a ingestão idempotente
 
 ## 6. Como rodar a ingestão
 

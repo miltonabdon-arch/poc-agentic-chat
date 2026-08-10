@@ -1,14 +1,17 @@
-"""Runtime FastAPI - expoe POST /agent/interact, delegando para o
-orquestrador (orchestrator/graph.py). Não usa AgentRuntimeMixin real do
-agent_framework (SPEC-002) por composição/herança - ver
-docs/ARQUITETURA.md, tabela "Mapeamento para as SPECs", para o racional
-dessa decisão.
+"""Runtime FastAPI - wrapper minimo equivalente a AgentRuntimeMixin (SPEC-002).
+
+Deve expor POST /agent/interact, delegando para o orquestrador
+(orchestrator/graph.py).
+
+TODO (Backend/Integração): implementar o endpoint POST /agent/interact.
 
 Contrato (ver tests/test_gateway.py e docs/CRITERIOS-DE-ACEITE.md):
 - Recebe {"message": str, "conversation_id": str | None}
-- Normaliza via gateway.channel_gateway.normalize() (ChannelMessage real)
+- Normaliza via gateway.channel_gateway.normalize()
 - Delega para orchestrator.graph.run_interaction()
 - Retorna {"conversation_id": str, "response": str}
+- GET /health já está implementado (gateway/health.py) e deve ser exposto
+  aqui também
 """
 
 from dotenv import load_dotenv
@@ -17,12 +20,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-# Os imports abaixo precisam vir depois de load_dotenv(): carregam, de forma
-# transitiva, agent_framework.config.settings (lido na importação) - ver
-# agent/llm_client.py e orchestrator/tracer.py.
-from gateway.channel_gateway import normalize  # noqa: E402
 from gateway.health import report_health  # noqa: E402
-from orchestrator.graph import run_interaction  # noqa: E402
 
 app = FastAPI(title="PoC Agente de Catálogo")
 
@@ -44,6 +42,4 @@ def health():
 
 @app.post("/agent/interact", response_model=InteractResponse)
 def interact(request: InteractRequest):
-    interaction = normalize(request.message, conversation_id=request.conversation_id)
-    response_text = run_interaction(interaction)
-    return InteractResponse(conversation_id=interaction.session_id, response=response_text)
+    raise NotImplementedError

@@ -1,25 +1,15 @@
-# Framework real agent_platform_oci - integracao efetiva desta PoC (AD-007).
-# Instala libs/agent_framework diretamente do subdiretorio do repositorio
-# publico via pip (git+subdirectory) - arrasta suas proprias dependencias
-# reais (langgraph>=0.2.60, fastapi>=0.115.0, pydantic>=2.8.0, openai>=1.60.0,
-# oci, oracledb, pymongo, redis, mcp, etc; ver
-# libs/agent_framework/pyproject.toml no repositorio real).
-agent-framework @ git+https://github.com/hoshikawa2/agent_platform_oci.git@main#subdirectory=libs/agent_framework
-
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.6
-pydantic>=2.8.0
-python-dotenv>=1.0.1
-pyyaml>=6.0.2
-
-# Vector store desta PoC - ver rag_pipeline/vectorizer.py: mantido fora do
-# agent_framework.rag.vector_store porque SQLiteVectorStore nao suporta
-# upsert por chave externa estavel (sempre gera novo id), incompativel com
-# o requisito de reingestao idempotente por chunk_id desta PoC.
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+httpx==0.28.1
+langgraph==0.2.34
 chromadb==0.5.15
 sentence-transformers==3.2.1
-
+openai==1.51.0
+pyyaml==6.0.2
+python-dotenv==1.0.1
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
 pytest==8.3.3
-pytest-asyncio>=0.23.0
 pytest-cov==5.0.0
 ruff==0.6.9
