@@ -1,0 +1,85 @@
+"""Testes do judge leve offline (agent/judge.py)."""
+
+import pytest
+
+from agent.judge import judge_batch, JudgeFinding, _NOT_FOUND_MARKER, _MIN_RESPONSE_CHARS
+
+
+def _interaction(response, source_document_id=None, interaction_id="i1"):
+    return {
+        "interaction_id": interaction_id,
+        "response": response,
+        "source_document_id": source_document_id,
+    }
+
+
+# --- check_groundedness ---
+
+def test_groundedness_flagga_response_sem_fonte():
+    result = judge_batch([_interaction("Seu plano tem 40GB.", source_document_id=None)])
+    assert result[0].flagged is True
+    assert "alucinação" in result[0].reason
+
+
+def test_groundedness_ok_quando_tem_fonte():
+    result = judge_batch([_interaction("Seu plano tem 40GB de franquia mensal.", source_document_id="turbo-40gb")])
+    assert result[0].flagged is False
+
+
+def test_groundedness_ok_quando_sem_response():
+    result = judge_batch([_interaction(None, source_document_id=None)])
+    assert result[0].flagged is False
+
+
+# --- check_not_found_consistency ---
+
+def test_not_found_consistency_flagga_quando_tinha_fonte():
+    response = f"{_NOT_FOUND_MARKER} sobre esse plano."
+    result = judge_batch([_interaction(response, source_document_id="turbo-40gb")])
+    assert result[0].flagged is True
+    assert "fonte disponível" in result[0].reason
+
+
+def test_not_found_consistency_ok_sem_fonte():
+    response = f"{_NOT_FOUND_MARKER} sobre esse plano."
+    result = judge_batch([_interaction(response, source_document_id=None)])
+    # groundedness pode flaggar, mas não not_found_consistency
+    assert "fonte disponível" not in (result[0].reason or "")
+
+
+def test_not_found_consistency_ok_resposta_normal_com_fonte():
+    result = judge_batch([_interaction("Plano com 40GB de franquia mensal.", source_document_id="turbo-40gb")])
+    assert result[0].flagged is False
+
+
+# --- check_length_anomaly ---
+
+def test_length_anomaly_flagga_response_curta():
+    curta = "X" * (_MIN_RESPONSE_CHARS - 1)
+    result = judge_batch([_interaction(curta, source_document_id="turbo-40gb")])
+    assert result[0].flagged is True
+    assert "curta" in result[0].reason
+
+
+def test_length_anomaly_ok_response_no_limite():
+    no_limite = "X" * _MIN_RESPONSE_CHARS
+    result = judge_batch([_interaction(no_limite, source_document_id="turbo-40gb")])
+    assert result[0].flagged is False
+
+
+# --- judge_batch: contrato geral ---
+
+def test_judge_batch_retorna_um_finding_por_interacao():
+    interactions = [
+        _interaction("Plano 40GB.", source_document_id="turbo-40gb", interaction_id="i1"),
+        _interaction("Plano barato.", source_document_id=None, interaction_id="i2"),
+    ]
+    results = judge_batch(interactions)
+    assert len(results) == 2
+    assert all(isinstance(r, JudgeFinding) for r in results)
+    assert results[0].interaction_id == "i1"
+    assert results[1].interaction_id == "i2"
+
+
+def test_judge_batch_lista_vazia():
+    assert judge_batch([]) == []
