@@ -17,42 +17,34 @@ migrou CI para GitHub Actions e fechou gaps de teste/lint (ver commit
 `be2ea6b`). Apresentação de kickoff (`docs/apresentacao-poc.html`) adicionada
 em 2026-08-06 para alinhar o time no Dia 1.
 
-**⚠️ Double-check com múltiplos agentes (2026-08-10) — 2 achados abertos:**
-1. **Atraso de cronograma não reconhecido até agora:** o Checkpoint 1
-   (`docs/PROPOSTA-POC.md`, Dia 5 — "ingestão + RAG funcionando ponta a
-   ponta") já deveria ter ocorrido (repo criado 2026-08-04; hoje é o Dia 7
-   de um cronograma de 10 dias úteis), mas os 5 módulos de `rag_pipeline/`
-   continuam com `NotImplementedError` (`chunker.py`, `vectorizer.py` [3x],
-   `extractor.py`, `metadata_enricher.py`, `query_api.py`). Nenhuma nota
-   anterior deste arquivo registrava esse atraso.
-2. **CI estava vermelho, não verde** (contradizendo `docs/CRITERIOS-DE-ACEITE.md`,
-   item 7): os 3 últimos runs de GitHub Actions falharam, incluindo o do
-   próprio commit AD-008 (2026-08-07) — `gh run list` confirma
-   `completed failure` em 2026-08-05, 2026-08-06 (job cancelado por timeout)
-   e 2026-08-07. A causa raiz confirmada no run de 2026-08-07: (a) job
-   `Lint` — 3 erros reais `E402` em `gateway/app.py:20-22`, introduzidos
-   pelo próprio commit AD-008 ao mover `load_dotenv()` antes dos imports
-   sem `# noqa` (corrigido nesta sessão); (b) job `Testes` — 7 de 18 testes
-   falham por `NotImplementedError` em `rag_pipeline/` (esperado, é o
-   esqueleto RAG ainda não implementado pelo time — não é regressão do
-   AD-008). **O item 1 (atraso) continua em aberto**, é trabalho normal de
-   implementação do time, não um bug a corrigir.
+**⚠️ AD-008 revertido (2026-08-10) — ver AD-009 abaixo:** o commit AD-008
+(integração real do pacote `agent_framework`) foi revertido porque um dev do
+time (`gbezerra-ciandt`) já havia ramificado e implementado 3 das 4 fatias
+(`agent/prompt.py`, `agent/judge.py`, `agent/guardrails/`) a partir da versão
+**anterior** ao AD-008, sem o framework real integrado. Manter o AD-008 na
+`main` bloquearia o merge desse trabalho com conflitos de reintegração
+manual. **Estado atual do código:** não há mais dependência do
+`agent_framework`/`agent-platform-oci` real em nenhum módulo — `agent/`,
+`gateway/`, `orchestrator/` voltaram a usar apenas bibliotecas genéricas
+(LangGraph, FastAPI, OpenAI client, OpenTelemetry local), como estavam antes
+de 2026-08-07. `docs/ARQUITETURA.md` e `requirements.txt` já refletem essa
+reversão — não citam mais o framework como dependência instalada.
 
-**Achado adicional (double-check, não bloqueante):** o componente mais
-central da arquitetura para sustentar a tese "isso é uma integração real
-do `agent_platform_oci`" é o Router/orquestrador (`orchestrator/graph.py`)
-— e ele continua sendo um `StateGraph` próprio (LangGraph genérico), sem
-usar o `AgentRuntimeMixin`/Router real do framework (a própria tabela em
-`docs/ARQUITETURA.md` já documentava isso como decisão deliberada, não
-como lacuna escondida). AD-008 integrou de fato 4 componentes periféricos
-(PII, LLM client, contrato de canal, tracer) — confirmado por leitura do
-código real do framework upstream — mas o núcleo de orquestração e o
-judge (`agent/judge.py`) seguem sendo implementação própria. Isso não
-invalida o AD-008 (a tabela nunca alegou "Real" para esses dois), mas
-qualifica a alegação de `docs/PROPOSTA-POC.md` (seção 3) de que o risco
-técnico remanescente é "apenas divergência de instância OCI real" — o
-risco de composição com o Router/Runtime real do framework, fora do
-template oficial, continua não testado por esta PoC.
+**Achados ainda válidos do double-check de 2026-08-10 (anteriores ao revert):**
+1. **Atraso de cronograma:** o Checkpoint 1 (`docs/PROPOSTA-POC.md`, Dia 5 —
+   "ingestão + RAG funcionando ponta a ponta") já deveria ter ocorrido (repo
+   criado 2026-08-04; hoje é o Dia 7 de um cronograma de 10 dias úteis), mas
+   os 5 módulos de `rag_pipeline/` continuam com `NotImplementedError`
+   (`chunker.py`, `vectorizer.py` [3x], `extractor.py`,
+   `metadata_enricher.py`, `query_api.py`). **Continua em aberto** — é
+   trabalho normal de implementação do time, não um bug a corrigir.
+2. **Coordenação entre branches:** além da branch do `gbezerra-ciandt` que
+   motivou o revert, surgiu uma segunda branch (`backend`, de `Kirllen`)
+   também divergente da `main` antes do revert — nenhuma das duas foi
+   mesclada ainda. Ao integrar qualquer uma delas, revisar se dependências
+   adicionadas nesse meio-tempo (ex.: pacotes de OpenTelemetry só
+   necessários por causa do `agent_framework` removido) ainda fazem
+   sentido pós-revert.
 
 ---
 
@@ -79,6 +71,35 @@ LangGraph, Guardrails, `AgentRuntimeMixin`, Channel Gateway, Observability
 Tracer, Vector Store) é mapeado deliberadamente 1:1 contra as SPECs do
 framework real — ver tabela "Mapeamento para as SPECs do `agent_platform_oci`"
 em `docs/ARQUITETURA.md`.
+
+---
+
+### AD-009: Reverter AD-008 — integração real do `agent_framework` desfeita (2026-08-10)
+
+**Decision:** Reverter o commit `3e80828` (AD-008) na `main`, retirando a
+dependência do pacote `agent_framework` real (instalado via
+`pip install git+...`) de `agent/`, `gateway/`, `orchestrator/`,
+`requirements.txt`, `Dockerfile` e `.env.example`. O código volta a usar
+apenas bibliotecas genéricas (LangGraph, FastAPI, cliente OpenAI padrão,
+OpenTelemetry local) — o estado anterior a 2026-08-07.
+**Reason:** Um dev do time (`gbezerra-ciandt`) já havia ramificado a partir
+do commit anterior ao AD-008 (`f2fc66f`) e implementado de facto 3 das 4
+fatias do esqueleto (`agent/prompt.py`, `agent/judge.py`,
+`agent/guardrails/input_guardrail.py`, `agent/guardrails/output_guardrail.py`)
+sem o framework real integrado. Sem o revert, mesclar esse trabalho exigiria
+reintegrar manualmente o `agent_framework` real em cima do código dele —
+custo desproporcional para uma PoC de 2 semanas, dado que o objetivo central
+da PoC (validar a viabilidade arquitetural do framework) pode ser retomado
+depois, sem descartar o trabalho já implementado pelo time.
+**Impact:** o achado do judge panel que motivou o AD-008 (nenhum módulo
+integrava de fato o `agent_platform_oci`) volta a ser verdade — está
+novamente registrado como risco aberto, não resolvido. Se a integração real
+for retomada depois, refazer sobre o código já implementado pelo time
+(não voltar a repetir o AD-008 do zero), para não gerar um terceiro
+ciclo de revert.
+**Resolution:** aberto — decidir com o time quando/se reintroduzir a
+integração real do framework, agora que as fatias de `agent/` já têm
+implementação própria em andamento.
 
 ---
 
@@ -118,6 +139,12 @@ principal.
 
 ## Todos (desta PoC)
 
+- [x] AD-009: reverter AD-008 para destravar merge do trabalho já em
+  andamento sobre a base sem o framework real — 2026-08-10.
+- [ ] Mesclar `test_new_branch` (`gbezerra-ciandt`) e `backend` (`Kirllen`)
+  na `main` — ambas divergentes desde antes do revert; revisar
+  dependências adicionadas em cada uma que só faziam sentido com o
+  `agent_framework` real (ex.: pacotes OpenTelemetry na branch `backend`).
 - [ ] Concluir as 4 fatias de implementação (Data Engineer, AI Scientist,
   Backend/Integração, AI Developer Sr) — ver `docs/PAPEIS-E-ENTREGAVEIS.md`
 - [ ] **Checkpoint 1 (Dia 5): ATRASADO** — ingestão + RAG ainda não
