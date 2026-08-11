@@ -37,4 +37,5 @@ def build_graph():
 
 
 def run_interaction(interaction: Interaction) -> str:
-    raise NotImplementedError
+    return "Resposta simulada do agente (a ser implementada no grafo LangGraph) " + interaction.message
+
