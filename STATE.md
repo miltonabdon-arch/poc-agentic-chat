@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-08-10
+**Last Updated:** 2026-08-11
 **Escopo deste arquivo:** este `STATE.md` é local a este repositório (PoC de 2
 semanas do "Agente de Catálogo"). Ele **não substitui** o `STATE.md` do
 projeto principal do Agente de Planos e Ofertas (POV) — é um resumo extraído
@@ -38,13 +38,20 @@ reversão — não citam mais o framework como dependência instalada.
    (`chunker.py`, `vectorizer.py` [3x], `extractor.py`,
    `metadata_enricher.py`, `query_api.py`). **Continua em aberto** — é
    trabalho normal de implementação do time, não um bug a corrigir.
-2. **Coordenação entre branches:** além da branch do `gbezerra-ciandt` que
-   motivou o revert, surgiu uma segunda branch (`backend`, de `Kirllen`)
-   também divergente da `main` antes do revert — nenhuma das duas foi
-   mesclada ainda. Ao integrar qualquer uma delas, revisar se dependências
-   adicionadas nesse meio-tempo (ex.: pacotes de OpenTelemetry só
-   necessários por causa do `agent_framework` removido) ainda fazem
-   sentido pós-revert.
+2. **Coordenação entre branches:** além da branch do `gbezerra-ciandt`
+   (`test_new_branch`), surgiu uma segunda branch (`backend`, de `Kirllen`)
+   também divergente da `main` antes do revert. **Atualização 2026-08-11:**
+   `backend` foi mesclada na `main` via PR #1 (commit `c43df2d`) —
+   implementa `gateway/channel_gateway.py::normalize()` e
+   `orchestrator/graph.py::run_interaction()` (este último com resposta
+   simulada hardcoded, ainda sem grafo LangGraph real) e liga o endpoint
+   `/agent/interact` ponta-a-ponta. `test_new_branch` (`gbezerra-ciandt`)
+   **continua sem PR aberto**, com 4 commits divergentes (`agent/prompt.py`,
+   `agent/judge.py`, `agent/guardrails/input_guardrail.py`,
+   `agent/guardrails/output_guardrail.py`) — é a próxima pendência de merge.
+   O CI de `main` segue vermelho após o merge do PR #1 (14 failed / 5
+   passed) — falha pré-existente e herdada (guardrails/judge/rag_pipeline
+   ainda em `NotImplementedError`), não uma regressão introduzida pelo merge.
 
 ---
 
@@ -141,10 +148,12 @@ principal.
 
 - [x] AD-009: reverter AD-008 para destravar merge do trabalho já em
   andamento sobre a base sem o framework real — 2026-08-10.
-- [ ] Mesclar `test_new_branch` (`gbezerra-ciandt`) e `backend` (`Kirllen`)
-  na `main` — ambas divergentes desde antes do revert; revisar
-  dependências adicionadas em cada uma que só faziam sentido com o
-  `agent_framework` real (ex.: pacotes OpenTelemetry na branch `backend`).
+- [x] Mesclar `backend` (`Kirllen`) na `main` — feito via PR #1
+  (commit `c43df2d`), 2026-08-11.
+- [ ] Mesclar `test_new_branch` (`gbezerra-ciandt`) na `main` — ainda sem
+  PR aberto; revisar se corrige as 5 falhas de `tests/test_agent.py`
+  hoje vermelhas em `main` por `NotImplementedError` em
+  `agent/guardrails/`, `agent/prompt.py`, `agent/judge.py`.
 - [ ] Concluir as 4 fatias de implementação (Data Engineer, AI Scientist,
   Backend/Integração, AI Developer Sr) — ver `docs/PAPEIS-E-ENTREGAVEIS.md`
 - [ ] **Checkpoint 1 (Dia 5): ATRASADO** — ingestão + RAG ainda não
