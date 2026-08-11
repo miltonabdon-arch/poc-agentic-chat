@@ -20,7 +20,9 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+from gateway.channel_gateway import normalize  # noqa: E402
 from gateway.health import report_health  # noqa: E402
+from orchestrator.graph import run_interaction  # noqa: E402
 
 app = FastAPI(title="PoC Agente de Catálogo")
 
@@ -42,4 +44,6 @@ def health():
 
 @app.post("/agent/interact", response_model=InteractResponse)
 def interact(request: InteractRequest):
-    raise NotImplementedError
+    interaction = normalize(request.message, request.conversation_id)
+    response_text = run_interaction(interaction)
+    return InteractResponse(conversation_id=interaction.conversation_id, response=response_text)

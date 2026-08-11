@@ -14,8 +14,16 @@ Contrato (ver Interaction em gateway/models.py):
 - timestamp: horário atual em UTC, formato ISO 8601
 """
 
+import uuid
+from datetime import datetime, timezone
+
 from gateway.models import Interaction
 
 
 def normalize(raw_message: str, conversation_id: str | None = None) -> Interaction:
-    raise NotImplementedError
+    return Interaction(
+        conversation_id=conversation_id or str(uuid.uuid4()),
+        channel="mock_sse",
+        message=raw_message,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
