@@ -1,13 +1,7 @@
 """Vetorizador - ver docs/INGESTAO.md, secao 5.
 
 Usa Chroma local como vector store, representando o papel do ADW no design
-real (pipeline-rag-base/design.md). DECISÃO DELIBERADA (ver docs/ARQUITETURA.md,
-"Decisões técnicas"): esta PoC NÃO usa agent_framework.rag.vector_store
-(SQLiteVectorStore) porque seu add_texts() sempre gera um novo id (uuid4),
-sem upsert por chave externa estável - incompatível com o requisito de
-reingestão idempotente por chunk_id desta PoC
-(tests/test_ingestao.py::test_reingerir_mesmo_documento_nao_duplica). Chroma
-suporta upsert nativo por id, que é o que este contrato exige.
+real (pipeline-rag-base/design.md).
 
 TODO (Data Engineer): implementar get_client(), get_collection() e
 vectorize_and_store() para satisfazer os testes de tests/test_ingestao.py.

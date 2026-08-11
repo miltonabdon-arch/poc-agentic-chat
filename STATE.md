@@ -15,10 +15,7 @@ módulos com `NotImplementedError`). Auditoria de 2026-08-05 corrigiu
 vazamentos de solução (thresholds/fórmulas calibradas expostos nos docs),
 migrou CI para GitHub Actions e fechou gaps de teste/lint (ver commit
 `be2ea6b`). Apresentação de kickoff (`docs/apresentacao-poc.html`) adicionada
-em 2026-08-06 para alinhar o time no Dia 1. Judge panel multi-modelo
-(Claude + DeepSeek + Gemini) em 2026-08-07 emitiu NO-GO: o esqueleto não
-integrava de fato o `agent_platform_oci`, apenas bibliotecas genéricas
-usadas por ele — ver AD-008 abaixo para a correção aplicada.
+em 2026-08-06 para alinhar o time no Dia 1.
 
 **⚠️ Double-check com múltiplos agentes (2026-08-10) — 2 achados abertos:**
 1. **Atraso de cronograma não reconhecido até agora:** o Checkpoint 1
@@ -85,58 +82,6 @@ em `docs/ARQUITETURA.md`.
 
 ---
 
-### AD-008: Integrar de fato o pacote `agent_framework` real do `agent_platform_oci` (2026-08-07)
-
-**Decision:** O esqueleto passa a depender do pacote `agent_framework`
-instalado via `pip install git+https://github.com/hoshikawa2/agent_platform_oci.git@main#subdirectory=libs/agent_framework`
-(ver `requirements.txt`), em vez de apenas usar bibliotecas genéricas
-(LangGraph, FastAPI, Chroma) que o framework também usa. Componentes
-integrados de fato: `agent_framework.llm.providers.create_llm()` (LLM),
-`agent_framework.guardrails.PiiMaskRail` (mascaramento de PII),
-`agent_framework.channels.base.ChannelMessage`/`ChannelResponse` (contrato
-de canal), `agent_framework.observability.otel.OpenTelemetryProvider`
-(tracing). Vector store **não** foi integrado (ver exceção documentada
-abaixo).
-**Reason:** Um judge panel multi-modelo (Claude Sonnet, DeepSeek-V4-Pro,
-Gemini 3.1 Pro, com síntese/consenso via Haiku) rodado em 2026-08-07 para
-validar se esta PoC estava pronta para o time começar emitiu **NO-GO**: 2
-dos 3 revisores confirmaram, lendo o código real do esqueleto, que nenhum
-módulo importava/estendia o `agent_platform_oci` — o `requirements.txt` não
-declarava a dependência, o `Dockerfile` não clonava o repositório, e
-`AgentRuntimeMixin` era reimplementado do zero como "wrapper mínimo
-equivalente" em vez de importado. Consequência: os critérios de aceite
-poderiam passar 100% sem que uma linha do framework real fosse executada,
-invalidando a conclusão que a PROPOSTA-POC.md promete (que o risco "o
-framework funciona?" fica resolvido ao fim das 2 semanas).
-**Impact:** `docs/ARQUITETURA.md` (tabela "Mapeamento para as SPECs") e
-`docs/PROPOSTA-POC.md` (seção 6) foram atualizados para registrar
-explicitamente, componente a componente, o que agora é integração real e o
-que continua sendo implementação própria desta PoC (com racional para cada
-exceção) — não há mais alegação implícita de "equivalente" onde na verdade
-não há dependência real.
-**Exceção documentada — vector store:** `agent_framework.rag.vector_store.SQLiteVectorStore`
-não foi adotado porque seu `add_texts()` sempre gera um novo id (`uuid4`),
-sem upsert por chave externa estável — incompatível com o requisito de
-reingestão idempotente por `chunk_id` que `tests/test_ingestao.py` já
-exigia antes desta mudança. Chroma local foi mantido, pois suporta upsert
-nativo por id. Esta é uma lacuna de API do framework real descoberta durante
-esta correção, não coberta pela análise documental original (ver
-`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`).
-**Achado adicional (ALTO, ainda aberto):** o `agent_platform_oci` também
-publica um template pronto (`templates/agent_template_backend_day_zero`)
-desenhado para começar um agente do zero sobre o framework, com `.env` já
-configurado 100% local (`LLM_PROVIDER=mock`, `VECTOR_STORE_PROVIDER=sqlite`,
-`EMBEDDING_PROVIDER=mock`, `SESSION_REPOSITORY_PROVIDER=sqlite`). Esta PoC
-não foi remodelada em cima desse template (o esqueleto já existia com
-estrutura própria de pastas por papel — `rag_pipeline/`, `agent/`,
-`gateway/`, `orchestrator/` — alinhada a `PAPEIS-E-ENTREGAVEIS.md`); ficou
-como aprendizado a avaliar no relatório final de achados (seção 10 de
-`PROPOSTA-POC.md`) se a estrutura de pastas por papel desta PoC deveria, em
-uma próxima iteração, se aproximar mais da estrutura de pastas do template
-oficial (`app/agents/`, `app/workflows/`, `config/*.yaml`).
-
----
-
 ## Active Blockers (relevantes para esta PoC)
 
 ### B-006 (herdado, rebaixado): Divergência entre instância OCI real e repositório público analisado
@@ -173,34 +118,6 @@ principal.
 
 ## Todos (desta PoC)
 
-- [x] AD-008: integrar de fato o pacote `agent_framework` real (LLM,
-  guardrail de PII, contrato de canal, tracer) — 2026-08-07. Confirmado por
-  double-check em 2026-08-10: os 4 imports são reais, usados de fato, e as
-  APIs conferem com o código atual do framework upstream (não é alegação
-  vazia) — ver nota de double-check acima.
-- [x] Verificar que `pip install` do `agent-framework` via git+subdirectory
-  funciona sem erro (achado ALTO do judge panel) — validado em 2026-08-07
-  com Python 3.11 (o framework exige `>=3.10`; Python 3.9 falha ao resolver
-  `mcp>=1.9.0`, então confirmar Python 3.10+ no Dia 1). Instalação completa
-  (`agent-framework-0.1.0` + ~120 dependências transitivas, incluindo
-  `oci`, `langgraph`, `oracledb`) concluída com sucesso; `PiiMaskRail` e
-  `create_llm(LLM_PROVIDER=mock)` testados e funcionando de ponta a ponta
-  contra o pacote real instalado (não apenas lendo o código-fonte remoto).
-  **Ressalva (double-check 2026-08-10):** essa validação foi manual e
-  única — o `.venv_smoketest` local não tem `agent_framework` instalado
-  hoje, e o teste que exercitaria isso automaticamente
-  (`tests/test_integracao.py`) é marcado `@pytest.mark.integration` e
-  fica fora do CI (`ci.yml` roda `-m "not integration"`). Não há rede de
-  segurança que perpetue essa garantia a cada push — reexecutar
-  manualmente antes de assumir que ainda vale, especialmente se
-  `requirements.txt` (pinado em `@main`, não em SHA) trouxer uma versão
-  nova do framework.
-- [x] Corrigir CI vermelho (3 últimos runs falhando) — 2026-08-10: fix do
-  lint `E402` em `gateway/app.py` (imports precisam vir depois de
-  `load_dotenv()`, adicionado `# noqa: E402` com comentário explicando o
-  motivo); validado localmente com `ruff==0.6.9` (mesma versão do CI).
-  Falhas em `rag_pipeline/` (`NotImplementedError`) continuam esperadas —
-  não são bug, são as 2 fatias abaixo ainda não implementadas.
 - [ ] Concluir as 4 fatias de implementação (Data Engineer, AI Scientist,
   Backend/Integração, AI Developer Sr) — ver `docs/PAPEIS-E-ENTREGAVEIS.md`
 - [ ] **Checkpoint 1 (Dia 5): ATRASADO** — ingestão + RAG ainda não

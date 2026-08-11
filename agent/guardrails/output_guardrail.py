@@ -1,10 +1,10 @@
-"""Guardrail de output - bloqueia citacao direta de concorrente por nome.
+"""Guardrail de output - equivalente simplificado de SPEC-005 (Guardrails).
 
-O framework agent_framework.guardrails nao expoe um rail pronto para
-"mencao a concorrente" (os rails de output reais - ComplianceRail,
-ProactiveOfferRail, OutputPiiMaskRail - cobrem outros escopos, ver
-agent_framework.guardrails.rails) - esta checagem determinística com a
-lista ficticia de concorrentes desta PoC preenche esse gap específico.
+Bloqueia citacao direta de concorrente por nome na resposta gerada pelo
+agente, antes de entregar ao cliente.
+
+TODO (AI Scientist / LLM Specialist): implementar check_output() para
+satisfazer os testes de tests/test_agent.py.
 
 Contrato (ver GuardrailResult em agent/models.py):
 - Se a resposta citar o nome de um concorrente (lista fictícia, definida
@@ -14,7 +14,7 @@ Contrato (ver GuardrailResult em agent/models.py):
   original
 """
 
-from agent.models import Action, GuardrailResult, Violation
+from agent.models import GuardrailResult
 
 # Lista fictícia de concorrentes para fins da PoC - não corresponde a
 # nenhuma operadora real.
@@ -22,18 +22,4 @@ _COMPETITOR_NAMES = ["OperadoraZ", "TeleConecta", "FastMóvel"]
 
 
 def check_output(text: str) -> GuardrailResult:
-    for name in _COMPETITOR_NAMES:
-        if name.lower() in (text or "").lower():
-            return GuardrailResult(
-                guardrail_type="output",
-                violation=Violation.COMPETITOR_MENTION,
-                action_taken=Action.BLOCK,
-                text="Não posso comparar nossos planos com o de outras operadoras.",
-            )
-
-    return GuardrailResult(
-        guardrail_type="output",
-        violation=Violation.NONE,
-        action_taken=Action.ALLOW,
-        text=text,
-    )
+    raise NotImplementedError
