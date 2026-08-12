@@ -26,10 +26,10 @@ def test_input_guardrail_permite_pergunta_normal():
     assert result.action_taken == Action.ALLOW
 
 
-def test_output_guardrail_bloqueia_citacao_de_concorrente():
+def test_output_guardrail_mascara_citacao_de_concorrente():
     result = check_output("Nosso plano é melhor que o da OperadoraZ.")
     assert result.violation == Violation.COMPETITOR_MENTION
-    assert result.action_taken == Action.BLOCK
+    assert result.action_taken == Action.MASK
     assert "OperadoraZ" not in result.text
 
 
