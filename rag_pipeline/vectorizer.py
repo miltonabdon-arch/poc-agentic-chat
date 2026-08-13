@@ -17,19 +17,46 @@ originais desta PoC, que motivam estas escolhas):
 """
 
 import chromadb
+from chromadb.utils import embedding_functions
 
 from rag_pipeline.models import Chunk
+
 
 _DEFAULT_COLLECTION = "catalogo_poc"
 
 
 def get_client(persist_path: str = "./chroma_data") -> chromadb.ClientAPI:
-    raise NotImplementedError
-
+    return chromadb.PersistentClient(path=persist_path)
+    
 
 def get_collection(client: chromadb.ClientAPI, name: str = _DEFAULT_COLLECTION):
-    raise NotImplementedError
+    return client.get_or_create_collection(
+        name=name,
+        metadata={"hnsw:space": "cosine"},
+        embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="paraphrase-multilingual-MiniLM-L12-v2",
+            normalize_embeddings=True,
+        ),
+    )
 
 
-def vectorize_and_store(client: chromadb.ClientAPI, chunk: Chunk, collection_name: str = _DEFAULT_COLLECTION) -> str:
-    raise NotImplementedError
+def vectorize_and_store(client: chromadb.ClientAPI, chunk: Chunk, collection_name: str = _DEFAULT_COLLECTION) -> None:
+    collection = get_collection(client, collection_name)
+    collection.upsert(
+        ids=[chunk.chunk_id],
+        documents=[chunk.text],
+        metadatas=[{
+            "source_document_id": chunk.source_document_id,
+            "plano_id": chunk.plano_id,
+            "categoria": chunk.categoria,
+            "vigencia_inicio": str(chunk.vigencia_inicio),
+            "section": chunk.section,
+            "nome_plano": chunk.nome_plano,
+            "status": chunk.status,
+        }],
+    )
+
+
+#Model options:
+#paraphrase-multilingual-mpnet-base-v2
+#paraphrase-multilingual-MiniLM-L12-v2
