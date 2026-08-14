@@ -35,15 +35,23 @@ _CONTEXT_LEAK_RES = [
     re.compile(r"\[PERGUNTA DO CLIENTE\]", re.IGNORECASE),
 ]
 
-# Markdown que não deve aparecer em respostas de voz.
-_MARKDOWN_RE = re.compile(
-    r"\*{1,3}[^*]+\*{1,3}"       # negrito/itálico: **texto** ou *texto*
-    r"|#{1,6}\s"                  # cabeçalhos: ## Título
-    r"|^\s*[-*+]\s"               # listas com marcador
-    r"|\[.*?\]\(.*?\)"            # links: [texto](url)
-    r"|`{1,3}[^`]*`{1,3}",       # código inline ou bloco
-    re.MULTILINE,
-)
+def _clean_markdown(text: str) -> str:
+    """Remove formatação markdown preservando o conteúdo textual para voz.
+
+    Cada tipo é tratado separadamente para garantir que apenas os delimitadores
+    sejam removidos — o texto falado não pode perder informação.
+    """
+    # Negrito/itálico: **TIM Turbo** → TIM Turbo  (nunca remove o nome)
+    text = re.sub(r"\*{1,3}([^*\n]+)\*{1,3}", r"\1", text)
+    # Cabeçalhos: ## Planos → Planos
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    # Marcadores de lista: - Item → Item
+    text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)
+    # Links: [site da TIM](https://...) → site da TIM  (URL não pode ser lida em voz)
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    # Código inline/bloco: `valor` → valor
+    text = re.sub(r"`{1,3}([^`]+)`{1,3}", r"\1", text)
+    return text.strip()
 
 _BLOCK_MSG = (
     "Essa informação não está disponível. "
@@ -74,8 +82,8 @@ def check_output(text: str) -> GuardrailResult:
             text=masked,
         )
 
-    # 3. Markdown residual — limpa e entrega
-    cleaned = _MARKDOWN_RE.sub("", text).strip()
+    # 3. Markdown residual — limpa preservando conteúdo para voz
+    cleaned = _clean_markdown(text)
     if cleaned != text:
         return GuardrailResult(
             guardrail_type="output",

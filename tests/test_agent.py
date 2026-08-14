@@ -39,6 +39,40 @@ def test_output_guardrail_permite_resposta_sem_concorrente():
     assert result.action_taken == Action.ALLOW
 
 
+def test_output_guardrail_limpa_negrito_preservando_nome_do_plano():
+    # Em voz, o nome do plano não pode desaparecer junto com o marcador
+    result = check_output("Seu plano é o **TIM Turbo**, com 40GB de franquia.")
+    assert result.violation == Violation.FORMAT_VIOLATION
+    assert result.action_taken == Action.MASK
+    assert "TIM Turbo" in result.text
+    assert "**" not in result.text
+
+
+def test_output_guardrail_limpa_link_preservando_texto_visivel():
+    # URL não pode ser lida em voz; texto visível deve sobreviver
+    result = check_output("Acesse [o site da TIM](https://tim.com.br) para mais detalhes.")
+    assert result.violation == Violation.FORMAT_VIOLATION
+    assert result.action_taken == Action.MASK
+    assert "o site da TIM" in result.text
+    assert "https://" not in result.text
+
+
+def test_output_guardrail_limpa_cabecalho_preservando_texto():
+    result = check_output("## Planos disponíveis\nO plano Turbo tem 40GB.")
+    assert result.violation == Violation.FORMAT_VIOLATION
+    assert result.action_taken == Action.MASK
+    assert "Planos disponíveis" in result.text
+    assert "#" not in result.text
+
+
+def test_output_guardrail_limpa_lista_preservando_itens():
+    result = check_output("Opções disponíveis:\n- Plano Turbo 40GB\n- Plano Light 15GB")
+    assert result.violation == Violation.FORMAT_VIOLATION
+    assert result.action_taken == Action.MASK
+    assert "Plano Turbo 40GB" in result.text
+    assert "Plano Light 15GB" in result.text
+
+
 def test_prompt_com_evidencia_gera_prompt_com_fonte():
     query_result = QueryResult(found=True, chunk_id="turbo-40gb#Franquia", text="40GB de internet.", source_document_id="turbo-40gb", confidence_score=0.9)
     prompt = build_prompt("Qual a franquia?", query_result)
