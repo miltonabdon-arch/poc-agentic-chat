@@ -15,13 +15,29 @@ Contrato (ver ExtractedDocument em rag_pipeline/models.py):
 """
 
 from pathlib import Path
+import frontmatter
 
 from rag_pipeline.models import ExtractedDocument
 
 
 class UnsupportedFormatError(Exception):
     pass
-
+    
 
 def extract_from_file(path: Path) -> ExtractedDocument:
-    raise NotImplementedError
+    if path.suffix != ".md":
+        raise UnsupportedFormatError(f"Unsupported file format: {path.suffix!r}")
+
+    raw = path.read_text(encoding="utf-8")
+    if not raw.startswith("---"):
+        raise UnsupportedFormatError(f"File has no YAML front-matter: {path}")
+
+    post = frontmatter.loads(raw)
+
+    return ExtractedDocument(
+        raw_text=post.content,
+        metadata=dict(post.metadata),
+        source_document_id=path.stem,
+    )
+
+

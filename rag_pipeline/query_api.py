@@ -22,12 +22,34 @@ Contrato (ver QueryResult em rag_pipeline/models.py):
   docs/INGESTAO.md, seção 7) — o valor abaixo é só um placeholder inicial.
 """
 
+import math
+
 import chromadb
+from sentence_transformers import CrossEncoder
 
 from rag_pipeline.models import QueryResult
+from rag_pipeline.vectorizer import get_collection
 
 _DEFAULT_COLLECTION = "catalogo_poc"
-_DEFAULT_THRESHOLD = 0.5  # TODO (Data Engineer): calibrar empiricamente
+_DEFAULT_THRESHOLD = 0.7  # TODO (Data Engineer): calibrar empiricamente  
+_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+
+_reranker: CrossEncoder | None = None
+
+
+def _get_reranker() -> CrossEncoder:
+    global _reranker
+    if _reranker is None:
+        _reranker = CrossEncoder(_RERANKER_MODEL)
+    return _reranker
+
+
+def _rerank(query_text: str, candidates: list[dict]) -> tuple[dict, float]:
+    pairs = [(query_text, c["text"]) for c in candidates]
+    scores = _get_reranker().predict(pairs)
+    normalized = [1 / (1 + math.exp(-float(s))) for s in scores]
+    best_idx = max(range(len(normalized)), key=lambda i: normalized[i])
+    return candidates[best_idx], normalized[best_idx]
 
 
 def query(
@@ -36,4 +58,32 @@ def query(
     threshold: float = _DEFAULT_THRESHOLD,
     collection_name: str = _DEFAULT_COLLECTION,
 ) -> QueryResult:
-    raise NotImplementedError
+    collection = get_collection(client, collection_name)
+
+    if collection.count() == 0:
+        return QueryResult(found=False, chunk_id=None, text=None, source_document_id=None, confidence_score=0.0)
+
+    n = min(5, collection.count())
+    results = collection.query(query_texts=[text], n_results=n, include=["documents", "metadatas", "distances"])
+
+    candidates = [
+        {
+            "id": results["ids"][0][i],
+            "text": results["documents"][0][i],
+            "metadata": results["metadatas"][0][i],
+        }
+        for i in range(len(results["ids"][0]))
+    ]
+    
+    best, confidence_score = _rerank(text, candidates)
+
+    if confidence_score < threshold:
+        return QueryResult(found=False, chunk_id=None, text=None, source_document_id=None, confidence_score=confidence_score)
+
+    return QueryResult(
+        found=True,
+        chunk_id=best["id"],
+        text=best["text"],
+        source_document_id=best["metadata"]["source_document_id"],
+        confidence_score=confidence_score,
+    )
