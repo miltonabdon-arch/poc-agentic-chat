@@ -16,11 +16,16 @@ Contrato:
   problema encontrado (ou flagged=False se passou em todos os checks)
 """
 
+import re
 from dataclasses import dataclass
 
-# Prefixo esperado do not_found_response() de agent/prompt.py.
-# Atualizar quando a implementação real for feita.
-_NOT_FOUND_MARKER = "não encontrei informações"
+_NOT_FOUND_RE = re.compile(
+    r"não encontrei"
+    r"|não (tenho|possuo) (essa |esta |a )?informaç"
+    r"|não (há|existe|tem) (essa |esta |a )?informaç"
+    r"|não foi possível encontrar",
+    re.IGNORECASE,
+)
 
 # Respostas menores que isso são suspeitas de erro silencioso.
 _MIN_RESPONSE_CHARS = 20
@@ -42,7 +47,7 @@ def _check_groundedness(interaction: dict) -> str | None:
 def _check_not_found_consistency(interaction: dict) -> str | None:
     response = interaction.get("response") or ""
     has_source = bool(interaction.get("source_document_id"))
-    if has_source and _NOT_FOUND_MARKER in response.lower():
+    if has_source and _NOT_FOUND_RE.search(response):
         return "agente disse 'não encontrei' mas havia fonte disponível"
     return None
 

@@ -1,6 +1,7 @@
 """Testes do judge leve offline (agent/judge.py)."""
 
-from agent.judge import judge_batch, JudgeFinding, _NOT_FOUND_MARKER, _MIN_RESPONSE_CHARS
+from agent.judge import judge_batch, JudgeFinding, _MIN_RESPONSE_CHARS
+from agent.prompt import not_found_response
 
 
 def _interaction(response, source_document_id=None, interaction_id="i1"):
@@ -32,15 +33,20 @@ def test_groundedness_ok_quando_sem_response():
 # --- check_not_found_consistency ---
 
 def test_not_found_consistency_flagga_quando_tinha_fonte():
-    response = f"{_NOT_FOUND_MARKER} sobre esse plano."
-    result = judge_batch([_interaction(response, source_document_id="turbo-40gb")])
+    result = judge_batch([_interaction("Não encontrei esse plano no catálogo.", source_document_id="turbo-40gb")])
+    assert result[0].flagged is True
+    assert "fonte disponível" in result[0].reason
+
+
+def test_not_found_consistency_flagga_com_resposta_padrao():
+    # not_found_response() começa com "Não encontrei" — deve ser detectada
+    result = judge_batch([_interaction(not_found_response(), source_document_id="turbo-40gb")])
     assert result[0].flagged is True
     assert "fonte disponível" in result[0].reason
 
 
 def test_not_found_consistency_ok_sem_fonte():
-    response = f"{_NOT_FOUND_MARKER} sobre esse plano."
-    result = judge_batch([_interaction(response, source_document_id=None)])
+    result = judge_batch([_interaction("Não encontrei esse plano no catálogo.", source_document_id=None)])
     # groundedness pode flaggar, mas não not_found_consistency
     assert "fonte disponível" not in (result[0].reason or "")
 
