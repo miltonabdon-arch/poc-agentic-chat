@@ -38,6 +38,13 @@ class JudgeFinding:
     reason: str | None
 
 
+def _check_empty_response(interaction: dict) -> str | None:
+    response = interaction.get("response")
+    if not response or not response.strip():
+        return "resposta vazia ou em branco — cliente sem atendimento"
+    return None
+
+
 def _check_groundedness(interaction: dict) -> str | None:
     if interaction.get("response") and not interaction.get("source_document_id"):
         return "response sem fonte — possível alucinação"
@@ -60,6 +67,7 @@ def _check_length_anomaly(interaction: dict) -> str | None:
 
 
 _CHECKS = [
+    _check_empty_response,
     _check_groundedness,
     _check_not_found_consistency,
     _check_length_anomaly,

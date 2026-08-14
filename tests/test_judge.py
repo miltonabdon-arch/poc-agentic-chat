@@ -12,6 +12,26 @@ def _interaction(response, source_document_id=None, interaction_id="i1"):
     }
 
 
+# --- check_empty_response ---
+
+def test_empty_response_flagga_response_none():
+    result = judge_batch([_interaction(None, source_document_id=None)])
+    assert result[0].flagged is True
+    assert "vazia" in result[0].reason
+
+
+def test_empty_response_flagga_string_vazia():
+    result = judge_batch([_interaction("", source_document_id="turbo-40gb")])
+    assert result[0].flagged is True
+    assert "vazia" in result[0].reason
+
+
+def test_empty_response_flagga_apenas_whitespace():
+    result = judge_batch([_interaction("   ", source_document_id="turbo-40gb")])
+    assert result[0].flagged is True
+    assert "vazia" in result[0].reason
+
+
 # --- check_groundedness ---
 
 def test_groundedness_flagga_response_sem_fonte():
@@ -25,9 +45,12 @@ def test_groundedness_ok_quando_tem_fonte():
     assert result[0].flagged is False
 
 
-def test_groundedness_ok_quando_sem_response():
+def test_groundedness_nao_aplica_a_response_nulo():
+    # Resposta nula é capturada por check_empty_response, não por groundedness
     result = judge_batch([_interaction(None, source_document_id=None)])
-    assert result[0].flagged is False
+    assert result[0].flagged is True
+    assert "alucinação" not in result[0].reason
+    assert "vazia" in result[0].reason
 
 
 # --- check_not_found_consistency ---
