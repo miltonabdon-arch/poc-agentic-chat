@@ -10,6 +10,8 @@ pyyaml==6.0.2
 python-dotenv==1.0.1
 opentelemetry-api==1.27.0
 opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+opentelemetry-exporter-otlp-proto-common==1.27.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
 pytest-bdd==7.3.0

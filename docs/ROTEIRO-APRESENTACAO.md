@@ -37,6 +37,50 @@ permite que o time construa, com papéis separados, em 2 semanas".
 
 ---
 
+## Preparação (antes de entrar na sala)
+
+Executar nesta ordem — não durante a apresentação.
+
+**1. Ingestão** (só se `chroma_data/` não existir ou estiver vazio)
+
+VS Code → Run & Debug → **"Ingestão (run_ingestao.py)"** → F5.
+Aguardar: `Ingestão concluída: 8 documentos, 32 chunks`.
+
+**2. Subir o cluster** (caminho primário — VS Code)
+
+VS Code → Run & Debug → **"Cluster Local (app + mock-services)"** → F5.
+Aguardar `Application startup complete.` nos dois terminais integrados.
+
+> Alternativa (se VS Code indisponível): `docker compose up -d` via WSL.
+
+**3. Verificar saúde**
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/health"
+# Retorno esperado: {"status":"ok"}
+```
+
+**4. Smoke test** (confirmar RAG antes de entrar na sala)
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/agent/interact" `
+  -Method POST -ContentType "application/json" `
+  -Body '{"message": "Quais franquias de dados o Plano Turbo 40GB inclui?"}'
+# Deve retornar resposta mencionando "40GB" — não a mensagem de fallback
+```
+
+Se o smoke test falhar: verificar logs no terminal integrado do VS Code antes de entrar na sala.
+
+> **Atenção — warm-up do modelo:** a primeira requisição após subir o cluster
+> demora 30–60s porque o `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`)
+> e o CrossEncoder (`BAAI/bge-reranker-v2-m3`) carregam os pesos em memória na
+> primeira chamada. As chamadas seguintes são imediatas — o modelo fica em memória
+> enquanto o processo estiver de pé. **O smoke test (passo 4 acima) serve exatamente
+> para absorver esse warm-up antes de entrar na sala.** Nunca faça a primeira
+> requisição ao vivo na frente da audiência.
+
+---
+
 ## Bloco 1 — Hipótese: por que essa PoC existe (2 min)
 
 **Abrir:** `docs/PROPOSTA-POC.md` → seção 3 (Hipótese a validar)
