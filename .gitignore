@@ -12,3 +12,4 @@ htmlcov/
 ESCOPO TÉCNICO.txt
 .DS_Store
 vendor/
+.playwright-mcp/
