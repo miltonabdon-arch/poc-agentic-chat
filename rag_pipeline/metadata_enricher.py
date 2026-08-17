@@ -18,4 +18,17 @@ from rag_pipeline.models import Chunk, ExtractedDocument
 
 
 def enrich(document: ExtractedDocument, raw_chunk: dict) -> Chunk:
-    raise NotImplementedError
+    
+    return Chunk(
+        chunk_id=f"{document.source_document_id}#{raw_chunk['section']}",
+        text=f"{raw_chunk['section']} {document.metadata['nome']} (ID: {document.metadata['plano_id']}): {raw_chunk['text']}",
+        source_document_id=document.source_document_id,
+        plano_id=document.metadata["plano_id"],
+        categoria=document.metadata["categoria"],
+        vigencia_inicio=document.metadata["vigencia_inicio"],
+        section=raw_chunk["section"],
+        nome_plano=document.metadata["nome"],
+        status="active"
+      )
+
+
