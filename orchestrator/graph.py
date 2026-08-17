@@ -11,6 +11,7 @@ Fluxo:
 from __future__ import annotations
 
 import logging
+import os
 from types import SimpleNamespace
 from typing import Any
 
@@ -24,7 +25,7 @@ from orchestrator.tracer import trace_interaction
 
 logger = logging.getLogger(__name__)
 
-MOCK_BASE = "http://mock-services:8001"
+MOCK_BASE = os.environ.get("MOCK_SERVICES_URL", "http://localhost:8001")
 MOCK_CPF = "12345678900"
 
 _router_settings = SimpleNamespace(
@@ -264,12 +265,16 @@ async def _run_catalog(text: str, msg: ChannelMessage) -> str:
         from agent.llm_client import complete
         from agent.prompt import build_prompt, not_found_response
         from rag_pipeline.query_api import query
+        from rag_pipeline.vectorizer import get_client
 
-        result = query(text)
+        chroma_client = get_client()
+        result = query(chroma_client, text)
         if not result.found:
             return not_found_response()
         prompt = build_prompt(text, result)
-        return complete(prompt["user"], system=prompt.get("system"))
+        if prompt is None:
+            return not_found_response()
+        return complete(prompt)
     except Exception:
         logger.warning("catalog_agent falhou, usando fallback", exc_info=True)
         return "Não consegui acessar o catálogo no momento. Tente novamente."
