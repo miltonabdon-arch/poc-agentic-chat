@@ -3,9 +3,9 @@ uvicorn[standard]==0.30.6
 pydantic==2.9.2
 httpx==0.28.1
 langgraph==0.2.34
-chromadb==0.5.15
+chromadb==1.5.9
 sentence-transformers==3.2.1
-openai==1.51.0
+openai>=1.60.0
 pyyaml==6.0.2
 python-dotenv==1.0.1
 opentelemetry-api==1.27.0

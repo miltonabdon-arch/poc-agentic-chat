@@ -1,6 +1,10 @@
 """Testes do judge leve offline (agent/judge.py)."""
 
-from agent.judge import judge_batch, JudgeFinding, _MIN_RESPONSE_CHARS
+from agent.judge import (
+    _MIN_RESPONSE_CHARS,
+    JudgeFinding,
+    judge_batch,
+)
 from agent.prompt import not_found_response
 
 

@@ -1,8 +1,7 @@
-from fastapi import FastAPI
 from agents.cancellation import router as cancellation_router
 from agents.deals import router as deals_router
 from agents.plans import router as plans_router
-
+from fastapi import FastAPI
 
 app = FastAPI(title="Mock Agents Service TIM")
 

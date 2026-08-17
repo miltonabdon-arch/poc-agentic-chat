@@ -16,17 +16,20 @@ originais desta PoC, que motivam estas escolhas):
   métrica da collection explicitamente.
 """
 
+import pathlib
+
 import chromadb
 from chromadb.utils import embedding_functions
 
 from rag_pipeline.models import Chunk
 
-
 _DEFAULT_COLLECTION = "catalogo_poc"
+_REPO_ROOT = pathlib.Path(__file__).parent.parent
 
 
-def get_client(persist_path: str = "./chroma_data") -> chromadb.ClientAPI:
-    return chromadb.PersistentClient(path=persist_path)
+def get_client(persist_path: str | None = None) -> chromadb.ClientAPI:
+    path = persist_path or str(_REPO_ROOT / "chroma_data")
+    return chromadb.PersistentClient(path=path)
     
 
 def get_collection(client: chromadb.ClientAPI, name: str = _DEFAULT_COLLECTION):
