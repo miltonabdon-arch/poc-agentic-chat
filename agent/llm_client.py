@@ -18,12 +18,24 @@ def get_client() -> OpenAI:
     )
 
 
-def complete(prompt: str, model: str | None = None) -> str:
+def complete(prompt: str, model: str | None = None, system: str | None = None) -> str:
+    """Chama o LLM com prompt do usuário e, opcionalmente, system prompt separado.
+
+    Args:
+        prompt: Conteúdo do turno atual (role:user) — saída de agent.prompt.build_prompt().
+        model: Modelo a usar (fallback para LLM_MODEL env ou gpt-4o-mini).
+        system: System prompt estático (role:system) — saída de agent.prompt.build_system_prompt().
+                Habilita tool-calling e MCPs reais que exigem separação de papéis.
+    """
     client = get_client()
     model = model or os.environ.get("LLM_MODEL", "gpt-4o-mini")
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         temperature=0.1,
     )
     return response.choices[0].message.content
