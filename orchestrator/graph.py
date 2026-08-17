@@ -1,17 +1,28 @@
-"""Orquestrador LangGraph — AI Developer Sr.
+"""Orquestrador LangGraph — AI Developer Sr (Igor Scaglia).
 
-Grafo de estados com EnterpriseRouter nativo do agent_framework.
-Contrato de entrada: ChannelMessage (agent_framework.channels.base).
+Responsabilidade: montar o grafo que une as fatias dos colegas usando
+os contratos definidos em ARQUITETURA.md como cola entre as partes.
 
-Fluxo:
+  Ana Carolina  → QueryResult      (rag_pipeline/query_api.py)
+  Gustavo       → GuardrailResult  (agent/guardrails/, branch test_new_branch)
+  Kirllen       → ChannelMessage   (gateway/channel_gateway.py, branch backend)
+  Igor (este arquivo) → build_graph(), run_interaction(), _run_catalog(), etc.
+
+Fluxo do grafo (PAPEIS-E-ENTREGAVEIS.md — AI Developer Sr):
   input_guardrails → routing_decision → [catalog|billing|cancellation|
   deals|eligibility|simulation|supervisor] → output_guardrails → judge → END
+
+Expansão sobre o framework:
+  O agent_platform_oci fornece EnterpriseRouter e ChannelMessage, mas NÃO
+  monta o StateGraph — essa topologia (nós, arestas, condicionais) é
+  responsabilidade explícita do AI Developer Sr (ver PAPEIS-E-ENTREGAVEIS.md).
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -21,7 +32,7 @@ from agent_framework.routing.enterprise_router import EnterpriseRouter
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
 
-from orchestrator.tracer import trace_interaction
+from orchestrator.tracer import log_sumario_interacao, trace_interaction
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +52,17 @@ _router = EnterpriseRouter(_router_settings)
 
 class GraphState(TypedDict):
     channel_message: ChannelMessage
-    sanitized_input: str
-    route: str
+    sanitized_input: str       # saída do input_guardrail (PII mascarado ou texto original)
+    route: str                 # agente escolhido pelo EnterpriseRouter
     intent: str
     answer: str
     final_answer: str
     blocked: bool
     guardrail_decisions: list[Any]
+    # chunk_id: adicionado pelo AI Dev Sr para propagar o identificador do
+    # documento RAG até o sumário de observabilidade (CRITERIOS-DE-ACEITE §6).
+    # O agent_framework não carrega esse campo — é extensão local da PoC.
+    chunk_id: str | None
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +99,15 @@ async def node_routing_decision(state: GraphState) -> GraphState:
 
 
 async def node_catalog_agent(state: GraphState) -> GraphState:
-    answer = await _run_catalog(state["sanitized_input"], state["channel_message"])
-    await trace_interaction("NOC", state["channel_message"], {"node": "catalog_agent"})
-    return {**state, "answer": answer}
+    # _run_catalog retorna (resposta, chunk_id) para que o chunk_id
+    # chegue ao sumário de observabilidade — ver CRITERIOS-DE-ACEITE §6.
+    answer, chunk_id = await _run_catalog(state["sanitized_input"], state["channel_message"])
+    await trace_interaction(
+        "NOC",
+        state["channel_message"],
+        {"node": "catalog_agent", "chunk_id": chunk_id},
+    )
+    return {**state, "answer": answer, "chunk_id": chunk_id}
 
 
 async def node_billing(state: GraphState) -> GraphState:
@@ -241,6 +262,8 @@ _compiled_graph = build_graph().compile()
 async def run_interaction(channel_message: ChannelMessage) -> str:
     await trace_interaction("IC", channel_message, {"text": channel_message.text})
 
+    t_inicio = time.perf_counter()
+
     initial_state = GraphState(
         channel_message=channel_message,
         sanitized_input="",
@@ -250,9 +273,21 @@ async def run_interaction(channel_message: ChannelMessage) -> str:
         final_answer="",
         blocked=False,
         guardrail_decisions=[],
+        chunk_id=None,
     )
 
     final_state = await _compiled_graph.ainvoke(initial_state)
+
+    # Sumário de observabilidade ao final do fluxo — CRITERIOS-DE-ACEITE §6.
+    # Agrega latência total, chunk usado e guardrails acionados numa linha legível.
+    latencia_ms = int((time.perf_counter() - t_inicio) * 1000)
+    log_sumario_interacao(
+        channel_message=channel_message,
+        latencia_ms=latencia_ms,
+        chunk_id=final_state.get("chunk_id"),
+        guardrail_decisions=final_state.get("guardrail_decisions") or [],
+    )
+
     return final_state.get("final_answer") or final_state.get("answer") or ""
 
 
@@ -260,7 +295,17 @@ async def run_interaction(channel_message: ChannelMessage) -> str:
 # Helpers de negócio (portados de Kirllen, adaptados para async + ChannelMessage)
 # ---------------------------------------------------------------------------
 
-async def _run_catalog(text: str, msg: ChannelMessage) -> str:
+async def _run_catalog(text: str, msg: ChannelMessage) -> tuple[str, str | None]:
+    """Consulta o catálogo RAG e chama o LLM com o contexto encontrado.
+
+    Retorna (resposta, chunk_id) para que o AI Dev Sr propague o chunk_id
+    ao estado do grafo e ao sumário de observabilidade (§6).
+
+    Colaboração:
+      - QueryResult vem de Ana (rag_pipeline/query_api.py)
+      - build_prompt / not_found_response vem de Gustavo (agent/prompt.py)
+      - complete() usa llm_client configurado pelo AI Dev Sr para Flow CI&T
+    """
     try:
         from agent.llm_client import complete
         from agent.prompt import build_prompt, not_found_response
@@ -268,16 +313,20 @@ async def _run_catalog(text: str, msg: ChannelMessage) -> str:
         from rag_pipeline.vectorizer import get_client
 
         chroma_client = get_client()
+        # Decisão: get_client() usa path absoluto (vectorizer.py) para evitar
+        # problema de cwd relativo quando o uvicorn muda de diretório.
         result = query(chroma_client, text)
         if not result.found:
-            return not_found_response()
+            return not_found_response(), None
         prompt = build_prompt(text, result)
         if prompt is None:
-            return not_found_response()
-        return complete(prompt)
+            # build_prompt retorna None quando found=False — nunca deve chegar
+            # aqui, mas tratamos por segurança (contrato de Gustavo).
+            return not_found_response(), None
+        return complete(prompt), result.chunk_id
     except Exception:
         logger.warning("catalog_agent falhou, usando fallback", exc_info=True)
-        return "Não consegui acessar o catálogo no momento. Tente novamente."
+        return "Não consegui acessar o catálogo no momento. Tente novamente.", None
 
 
 async def _run_billing(msg: ChannelMessage) -> str:
