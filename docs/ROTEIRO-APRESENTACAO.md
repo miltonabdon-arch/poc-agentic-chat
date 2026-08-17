@@ -1,215 +1,296 @@
 # Roteiro de Apresentação — Agente de Catálogo TIM (PoC)
+
 **Data:** 2026-08-18 | **Apresentador:** Igor Scaglia (AI Developer Sr, CI&T)
-**Duração estimada:** 20–25 minutos
+**Duração estimada:** 25–30 minutos
 
 ---
 
-## Objetivo da apresentação
+## Fio condutor da apresentação
 
-Mostrar que o framework `agent_platform_oci` é viável como base do Agente de
-Planos e Ofertas — rodando ponta a ponta em ambiente local, com LLM real (Flow CI&T).
+A narrativa percorre o arco completo de uma PoC colaborativa:
 
-Resultado esperado: o time sai com confiança técnica para adotar o framework
-no projeto real.
+> **Hipótese** (PROPOSTA-POC §3) →
+> **Contratos definidos** (kickoff) →
+> **Cada papel entrega sua fatia** (paralelo) →
+> **Conflitos encontrados e resolvidos** (integração) →
+> **Grafo montado** (AI Dev Sr) →
+> **Demo contra os critérios** →
+> **Achados e o que fica para o projeto real**
+
+O ponto de chegada não é "olha o que eu fiz" — é "olha o que o framework
+permite que o time construa, com papéis separados, em 2 semanas".
 
 ---
 
 ## Estrutura (com timing)
 
-| # | Bloco | Arquivo(s) a mostrar | Tempo |
-|---|-------|----------------------|-------|
-| 1 | Contexto: o que é a PoC e por que ela existe | `docs/PROPOSTA-POC.md` | 2 min |
-| 2 | Arquitetura: o grafo LangGraph e os 11 nós | `orchestrator/graph.py` L42–231 | 4 min |
-| 3 | Responsabilidades do time (quem fez o quê) | `orchestrator/graph.py` + módulos | 3 min |
-| 4 | **DEMO AO VIVO** — 5 casos via HTTP | `scripts/test_http.ps1` | 7 min |
-| 5 | Por dentro da demo (mostrar código enquanto responde) | `agent/guardrails/`, `agent/prompt.py` | 4 min |
-| 6 | O que fica para o projeto real | `STATE.md` → Deferred Ideas | 2 min |
-| 7 | Perguntas | — | livre |
+| # | Bloco | Tempo |
+|---|-------|-------|
+| 1 | Hipótese: por que essa PoC existe | 2 min |
+| 2 | Contratos: a cola definida no kickoff | 3 min |
+| 3 | O que cada colega entregou e como chegou até mim | 4 min |
+| 4 | O que eu recebi e o que faltava: montar o grafo | 3 min |
+| 5 | **DEMO AO VIVO** — 7 casos vs. os critérios de aceite | 8 min |
+| 6 | BDD: como os critérios viraram testes executáveis | 2 min |
+| 7 | Achados técnicos: o que ficou para o projeto real | 3 min |
+| 8 | Perguntas | livre |
 
 ---
 
-## Bloco 1 — Contexto (2 min)
+## Bloco 1 — Hipótese: por que essa PoC existe (2 min)
 
-Abrir `docs/PROPOSTA-POC.md` e mostrar apenas:
-- **Objetivo:** validar `agent_platform_oci` em 2 semanas
-- **Escopo deliberadamente limitado:** catálogo local, LLM mock → LLM real, sem infraestrutura de nuvem
-- "O que fazemos aqui é exatamente o que vai para produção — mesmos contratos, mesmo framework"
+**Abrir:** `docs/PROPOSTA-POC.md` → seção 3 (Hipótese a validar)
+
+```
+"É possível montar, em 2 semanas, um agente conversacional funcional
+ponta a ponta sobre agent_platform_oci — com ingestão RAG própria,
+guardrails de input/output, orquestração via grafo e observabilidade
+nativa — usando apenas componentes locais/mock, sem depender de
+provisionamento de infraestrutura OCI real."
+```
 
 **Fala sugerida:**
-> "Esta PoC não é código descartável. Ela valida os contratos de dados,
-> o grafo de estados e o roteamento do framework que vamos usar no projeto real.
-> O que está aqui em `ChannelMessage`, `QueryResult` e `GuardrailResult`
-> vai direto para o Agente POV — sem reescrita."
+> "Antes desta PoC, a equipe confirmou que o `agent_platform_oci` é real e
+> maduro — mas só lendo documentação. A questão era: quando a gente roda,
+> o que funciona como previsto e o que exige adaptação?
+> Essa pergunta virou a hipótese que vamos responder hoje."
+
+**Pontos a marcar:**
+- Não é código descartável — os contratos de dados vão para o projeto real
+- Caso de uso deliberadamente simples para não travar no caso de uso, mas sim no framework
+- LLM real (Flow CI&T) desde o Dia 13 — não é mock end-to-end
 
 ---
 
-## Bloco 2 — Arquitetura: o grafo LangGraph (4 min)
+## Bloco 2 — Contratos: a cola definida no kickoff (3 min)
 
-### Abrir: `orchestrator/graph.py`
+**Abrir:** `CLAUDE.md` → seção "Contratos de dados entre módulos" (tabela)
 
-**L42–50** — mostrar `GraphState` (TypedDict):
-```python
-class GraphState(TypedDict):
-    channel_message: ChannelMessage   # contrato do agent_framework
-    sanitized_input: str              # saída do guardrail de input
-    route: str                        # decisão do EnterpriseRouter
-    ...
-```
-> "O estado flui pelo grafo. Cada nó recebe e devolve GraphState — é o
-> padrão do LangGraph, o mesmo que o `agent_platform_oci` usa internamente."
+Mostrar os 3 contratos que o time acordou antes de escrever qualquer código:
 
-**L188–231** — mostrar `build_graph()`:
-- Apontar os 11 nós no `add_node`
-- Mostrar as 2 arestas condicionais: `_after_guardrails` (L166) e `_after_routing` (L170)
-- Mostrar `g.set_entry_point("input_guardrails")` — é sempre o primeiro nó
+| Contrato | Produtor | Consumidor | O que carrega |
+|----------|----------|-----------|---------------|
+| `QueryResult` | Ana (rag_pipeline) | Igor (orchestrator) | found, chunk_id, text, source_document_id, confidence_score |
+| `GuardrailResult` | Gustavo (agent) | Igor (orchestrator) | guardrail_type, violation, action_taken, text |
+| `ChannelMessage` | Kirllen (gateway) | Igor (orchestrator) | channel, session_id, user_id, text, context |
 
-**Diagrama verbal do fluxo:**
-```
-POST /agent/interact
-  → channel_gateway.normalize()  → ChannelMessage
-  → input_guardrails             → [BLOCK se PII out-of-domain]
-  → routing_decision             → EnterpriseRouter lê routing_config.yaml
-  → catalog_agent | billing | handoff_cancellation | handoff_deals | ...
-  → output_guardrails            → [MASK concorrente | BLOCK context-leak]
-  → judge                        → log offline
-  → resposta
-```
+**Fala sugerida:**
+> "O paper do framework fala em contratos de dados como 'cola' entre papéis.
+> A gente levou isso a sério: nenhum dos quatro papéis começou a codificar
+> antes de ter esses três contratos assinados.
+> Se eu errar a integração, o problema está aqui — não no código de cada papel."
 
-**Breakpoint sugerido:** L234 — `_compiled_graph = build_graph().compile()`
-> "Aqui o grafo é compilado no startup da aplicação. Em tempo de request,
-> chamamos `ainvoke` — não há compilação no caminho crítico."
+**Ponto visual:** mostrar `rag_pipeline/models.py` e `agent/models.py`
+— são literalmente 2 arquivos de ~30 linhas cada que sustentam tudo.
 
 ---
 
-## Bloco 3 — Responsabilidades do time (3 min)
+## Bloco 3 — O que cada colega entregou e como chegou até mim (4 min)
 
-Mostrar os módulos e quem implementou cada um:
+**Fala sugerida:**
+> "Cada papel desenvolveu sua fatia em branch separada.
+> Vou contar o que cada um entregou e como isso chegou para mim."
 
-| Módulo | Responsável | O que valida do framework |
-|--------|-------------|--------------------------|
-| `rag_pipeline/vectorizer.py` | Ana (Data Engineer) | Chroma como ADW local |
-| `rag_pipeline/query_api.py` | Ana | CrossEncoder re-ranking |
-| `agent/judge.py` | Gustavo (AI Scientist) | Checagem offline de alucinação |
-| `agent/guardrails/` | Gustavo | PII masking + filtro de concorrentes |
-| `agent/prompt.py` | Gustavo | Montagem estruturada do contexto RAG |
-| `gateway/app.py` | Kirllen (Backend) | Runtime FastAPI + Channel Gateway |
-| `orchestrator/graph.py` | Igor (AI Dev Sr) | Grafo LangGraph + EnterpriseRouter |
+### Ana (Data Engineer) — rag_pipeline/
 
-> "Cada fatia foi desenvolvida por um papel diferente, sem depender das
-> outras no meio do sprint. Os contratos (`QueryResult`, `GuardrailResult`,
-> `Interaction`) são a cola — e funcionaram."
+- Branch: `main` (entregue via PR)
+- Entregáveis: `extractor.py`, `chunker.py`, `metadata_enricher.py`, `vectorizer.py`, `query_api.py`
+- O que veio pronto para eu usar: `query(client, text) → QueryResult`
+- Achado inesperado que ela resolveu: embedding default do Chroma (inglês) não discriminava "Turbo 40GB" de "Controle 20GB" — ela escolheu `paraphrase-multilingual-MiniLM-L12-v2` + CrossEncoder re-ranking
+
+**Mostrar (30 segundos):** `rag_pipeline/query_api.py` L55–89 — a função `query()` com CrossEncoder.
+
+### Gustavo (AI Scientist) — agent/
+
+- Branch: `test_new_branch` (cherry-pick manual — PR não foi aberto a tempo)
+- Entregáveis: `prompt.py`, `guardrails/input_guardrail.py`, `guardrails/output_guardrail.py`, `judge.py`
+- O que veio pronto: `build_prompt(question, query_result)`, `not_found_response()`, `check_input(text)`, `check_output(text)`
+- Ponto crítico: `build_prompt()` retorna `None` quando `found=False` — isso obrigou o grafo a nunca chamar o LLM para planos inexistentes
+
+**Mostrar (30 segundos):** `agent/prompt.py` L126–127 — o `if not query_result.found: return None`.
+
+### Kirllen (Backend/Integração) — gateway/ + mock_services/
+
+- Branch: `backend` (entregue via PR #1)
+- Entregáveis: `channel_gateway.py`, `app.py`, `mock_services/` completo (CRM, cancellation, deals, plans)
+- O que veio pronto: `normalize(raw_message) → ChannelMessage` e o runtime FastAPI
+- Valor do mock_services: os handoffs de cancelamento e deals funcionam localmente sem nenhuma integração real
+
+**Mostrar (30 segundos):** `gateway/channel_gateway.py` L11–19 — a função `normalize()` que cria o `ChannelMessage`.
 
 ---
 
-## Bloco 4 — DEMO AO VIVO (7 min)
+## Bloco 4 — O que eu recebi e o que faltava: montar o grafo (3 min)
 
-**Pré-requisito:** cluster rodando via VS Code `Cluster Local (app + mock-services)` F5.
+**Fala sugerida:**
+> "Eu recebi três branches, três contratos implementados, e o `agent_framework`
+> com `ChannelMessage`, `EnterpriseRouter` e `AgentObserver`.
+> O framework não monta o grafo — essa é a responsabilidade explícita do AI Dev Sr.
+> Foi o principal aprendizado prático desta PoC."
 
-### Comando a executar:
+**Mostrar:** `orchestrator/graph.py` L1–12 — o docstring com a tabela de atribuição:
+
+```
+Ana Carolina → QueryResult      (rag_pipeline/query_api.py)
+Gustavo      → GuardrailResult  (agent/guardrails/, branch test_new_branch)
+Kirllen      → ChannelMessage   (gateway/channel_gateway.py, branch backend)
+Igor         → build_graph(), run_interaction()
+```
+
+**Mostrar:** `orchestrator/graph.py` L191–231 — `build_graph()`:
+- `g.add_node("input_guardrails", node_input_guardrails)` — código do Gustavo, nó do grafo de Igor
+- `g.add_conditional_edges("input_guardrails", _after_guardrails)` — a lógica block/allow
+- `g.set_entry_point("input_guardrails")` — sempre começa pelo guardrail, nunca pelo agente
+
+**Mostrar:** `orchestrator/graph.py` L272–316 — `_run_catalog()`:
+> "Aqui o grafo integra as três fatias: QueryResult de Ana, build_prompt de Gustavo,
+> complete() via Flow CI&T. Cada contrato chegou de uma branch diferente;
+> este nó é onde eles se encontram."
+
+**Conflito que precisou resolver (AD-008 → AD-009 → AD-010):**
+> "A primeira tentativa de integrar o `agent_framework` causou conflitos
+> com as outras branches em andamento. Revertemos, esperamos as branches
+> ficarem prontas, e reintroduzimos via vendoring — 3 dias de custo,
+> aprendizado real para o projeto."
+
+---
+
+## Bloco 5 — DEMO AO VIVO (8 min)
+
+**Pré-requisito:** cluster rodando.
+
+```powershell
+# Verificar saúde antes de rodar qualquer demo
+Invoke-RestMethod -Uri "http://localhost:8000/health"
+# Deve retornar: {"status":"ok","chroma":"ok"}
+```
+
+### Executar:
 ```powershell
 cd c:\projects\ciandt\tim\src\poc-agentic-chat
 .\scripts\test_http.ps1
 ```
 
-### Casos e o que mostrar em cada um:
+### Casos e narrativa de cada um:
 
-**[1/5] Catálogo RAG — Turbo 40GB**
-> Pergunta: "Quais franquias de dados o Plano Turbo 40GB inclui?"
-- Esperado: resposta com "40GB de internet 4G/5G e 10GB adicionais via NetFlow"
-- Ponto de destaque: **"O LLM respondeu só com o que estava no Chroma. Sem invenção."**
+**[CASO 1/7] §3 — RAG: Franquia do Turbo 40GB**
+> "Pergunta real, plano real no catálogo."
+- Resultado esperado: "40GB de internet 4G/5G e 10GB adicionais via NetFlow"
+- Narrativa: "O RAG localizou o chunk em Ana, o prompt de Gustavo montou o contexto, o LLM do Flow CI&T respondeu. Sem hardcode."
+- Trace a mostrar no log: `chunk_id=turbo-40gb#Franquia`
 
-**[2/5] Catálogo RAG — Família Prime (fidelidade)**
-> Pergunta: "Existe fidelidade no Plano Família Prime?"
-- Esperado: "fidelidade de 24 meses... bônus de 10GB adicionais"
-- Ponto de destaque: **"Segundo plano, mesma pipeline RAG → sem hardcode"**
+**[CASO 2/7] §3 — RAG: Fidelidade do Família Prime**
+> "Segundo plano, mesma pipeline — valida que não é um caso especial."
+- Resultado esperado: "fidelidade de 24 meses... bônus de 10GB"
+- Trace: `chunk_id=familia-prime#Fidelidade`
 
-**[3/5] Fora do catálogo**
-> Pergunta: "Qual o preço do Plano Estratosférico 500GB?"
-- Esperado: `not_found_response()` — "Não encontrei essa informação..."
-- Ponto de destaque: **"Plano inexistente. O sistema não inventa. É a regra mais importante."**
-- Mostrar código: `agent/prompt.py` L126–127:
-  ```python
-  if not query_result.found:
-      return None   # orquestrador chama not_found_response()
-  ```
+**[CASO 3/7] §3 — RAG: Multa do Controle 20GB**
+> "Terceiro tipo de dado — valor monetário. O LLM responde com R$240,00 porque o documento diz R$240,00."
+- Resultado esperado: "R$ 240,00"
+- Trace: `chunk_id=controle-20gb#Multa de cancelamento`
 
-**[4/5] Handoff — Cancelamento**
-> Pergunta: "Quero cancelar minha linha"
-- Esperado: "[Agente Retenção] Entendo que deseja cancelar..."
-- Ponto de destaque: **"O grafo detectou a intenção, fez handoff para o mock do Agente de Retenção. No projeto real, é uma chamada real para o agente de cancelamento."**
-- Mostrar código: `orchestrator/routing_config.yaml` L51–62 (intenção `cancellation_request`)
+**[CASO 4/7] §4 — Fora do catálogo**
+> "Plano que não existe."
+- Resultado esperado: `"Não encontrei essa informação no catálogo..."`
+- Narrativa: "O RAG retornou `found=False`. O grafo nunca chamou o LLM.
+  `build_prompt()` de Gustavo retornou `None` — é a regra mais importante da PoC."
+- Trace: `chunk_id=nenhum`
 
-**[5/5] PII masking**
-> Pergunta: "Meu CPF é 123.456.789-00, qual meu plano atual?"
-- Esperado: CPF nunca chega ao LLM — `not_found_response()`
-- Ponto de destaque: **"O CPF foi mascarado antes de qualquer chamada ao LLM. Nem o log vê o dado real."**
-- Mostrar código: `agent/guardrails/input_guardrail.py` L57–75 (mascaramento em cadeia)
+**[CASO 5/7] §5a — PII masking: CPF**
+> "Mensagem com CPF de teste."
+- Resultado esperado: CPF não aparece na resposta nem no log
+- Narrativa: "O guardrail de input de Gustavo rodou antes de qualquer chamada ao LLM.
+  O dado sensível nunca chegou ao modelo."
+- Trace: `guardrails_acionados=['input:pii']`
+
+**[CASO 6/7] §5b — Output guardrail: concorrente**
+> "Pergunta que tenta forçar comparação com concorrente."
+- Resultado esperado: "outra operadora" onde estaria "OperadoraZ"
+- Narrativa: "O LLM pode mencionar um concorrente na saída — o guardrail de output
+  mascara antes de devolver ao canal."
+
+**[CASO 7/7] §5b — Handoff: cancelamento**
+> "Intenção clara de cancelar."
+- Resultado esperado: "[Agente Retenção] Entendo que deseja cancelar..."
+- Narrativa: "O EnterpriseRouter do framework detectou a intenção `cancellation_request`.
+  O grafo fez handoff para o mock do Agente de Retenção de Kirllen."
 
 ---
 
-## Bloco 5 — Por dentro da demo (4 min)
+## Bloco 6 — BDD: como os critérios viraram testes executáveis (2 min)
 
-### Guardrail de input — `agent/guardrails/input_guardrail.py`
+**Abrir:** `tests/features/criterios_3_rag.feature`
 
-**L36–48** — padrões de PII:
-```python
-_CPF_RE  = re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)")
-_CNPJ_RE = ...
-_EMAIL_RE = ...
-_PHONE_RE = ...   # DDD obrigatório para reduzir falsos positivos
+Mostrar um cenário `@unit`:
+
+```gherkin
+@unit @criterio_3
+Scenario: Franquia do Turbo 40GB respondida sem LLM externo
+  Given uma mensagem "Quais franquias de dados o Plano Turbo 40GB inclui?"
+  When o agente processa com LLM mockado retornando "..."
+  Then a resposta contém "40"
+  And o traço contém chunk_id "turbo-40gb"
 ```
-> "Regex calibrada para reduzir falsos positivos — exige DDD no telefone,
-> CNPJ antes de CPF para evitar ambiguidade."
 
-**L57–75** — `check_input()`: ordem out-of-domain → PII masking.
+**Fala:**
+> "Cada critério de aceite tem cenários BDD. O `@unit` roda em CI sem precisar
+> do Flow CI&T — o LLM é mockado, o Chroma é temporário, mas os guardrails,
+> o grafo e o RAG são reais.
+> O `@live_llm` valida o pipeline completo com o Flow CI&T real.
+> Essa separação é a diferença entre 'funciona no laptop do Igor' e
+> 'a CI certifica que funciona'."
 
-### Prompt builder — `agent/prompt.py`
-
-**L64–75** — `_SYSTEM_PROMPT`: identidade + regras fixas (role:system)
-> "Separamos system/user — é o pré-requisito para tool-calling real via MCP no projeto real."
-
-**L126–127** — retorna `None` quando `found=False`:
-> "O LLM nunca é chamado para planos que não existem. Sem alucinação por design."
-
-**L137–146** — seção `[CONTEXTO]` com `source_document_id`:
-> "O ID da fonte vai para o judge offline — ele verifica se a resposta
-> está ancorada em uma evidência real."
-
-### Judge offline — `agent/judge.py` L37–54
-
-> "Três checks: groundedness, not-found consistency e length anomaly.
-> Não bloqueia o fluxo síncrono — roda sobre o lote depois."
+```powershell
+# Mostrar ao vivo:
+.\venv\Scripts\pytest -m unit -v --tb=short 2>&1 | Select-String "PASSED|FAILED"
+```
 
 ---
 
-## Bloco 6 — O que fica para o projeto real (2 min)
+## Bloco 7 — Achados técnicos: o que fica para o projeto real (3 min)
 
-Abrir `STATE.md` → seção "Deferred Ideas":
+**Abrir:** `docs/ACHADOS-TECNICOS.md`
 
-1. **State Store compartilhado (Redis/AlloyDB):** aqui o estado é in-memory por request. No projeto real, precisa persistir entre turnos e agentes.
-2. **Judge com Golden Standard Dataset:** aqui fazemos 3 checks por proxy. O projeto real precisa de um dataset de avaliação curado.
-3. **LLM Router ativo (`enable_llm_router: true`):** aqui o roteamento é por palavras-chave (YAML). No projeto real, o LLM classifica a intenção.
-4. **Integração OCI real:** aqui o `agent_framework` é vendorizado localmente. No projeto, vem do repositório privado da TIM/Oracle.
+**Três achados principais a destacar:**
 
-> "Esses 4 pontos são a lista de trabalho do projeto real — não são dívidas técnicas desta PoC, são extensões deliberadamente postergadas para manter o foco nas 2 semanas."
+1. **O grafo é sempre do desenvolvedor (o mais importante):**
+   > "O framework fornece `EnterpriseRouter`, `ChannelMessage` e `AgentObserver`,
+   > mas a topologia do StateGraph — quais nós existem, em que ordem, com quais
+   > condicionais — é sempre responsabilidade do AI Dev Sr.
+   > No projeto real, esse grafo vai crescer conforme as jornadas."
+
+2. **`AgentObserver` noop precisou de segunda camada:**
+   > "Localmente, o `AgentObserver` não imprime nada — ele espera um
+   > `analytics` real (Langfuse, OCI). Adicionamos uma segunda camada de
+   > logging (`TRACE|tipo|campo=valor`). No projeto real, é a instância OCI
+   > que resolve isso."
+
+3. **B-006 permanece — instância OCI interna vs. repositório público:**
+   > "Esta PoC rodou sobre o repositório público. A instância interna
+   > Oracle/TIM pode ter customizações. Recomendo pedir acesso antes do kickoff
+   > do projeto real."
 
 ---
 
 ## Comandos de emergência (se algo falhar ao vivo)
 
 ```powershell
+# Verificar saúde antes de qualquer demo
+Invoke-RestMethod -Uri "http://localhost:8000/health"
+
 # Fallback 1: demo sem HTTP (não depende do cluster)
-cd c:\projects\ciandt\tim\src\poc-agentic-chat
-python scripts/run_demo.py
+.\venv\Scripts\python scripts/run_demo.py
 
 # Fallback 2: resubir cluster manualmente
-# Terminal 1:
-cd mock_services; uvicorn app:app --host 0.0.0.0 --port 8001
-# Terminal 2:
-$env:PYTHONPATH="."; foreach($l in Get-Content .env){if($l -match "^([^#=][^=]*)=(.*)$"){[System.Environment]::SetEnvironmentVariable($Matches[1].Trim(),$Matches[2].Trim())}}
-uvicorn gateway.app:app --host 0.0.0.0 --port 8000
+# Terminal 1 — mock services:
+.\venv\Scripts\uvicorn mock_services.app:app --port 8001
 
-# Verificar portas ativas
+# Terminal 2 — gateway (carregar .env primeiro):
+foreach($l in Get-Content .env){if($l -match "^([^#=][^=]*)=(.*)$"){[System.Environment]::SetEnvironmentVariable($Matches[1].Trim(),$Matches[2].Trim())}}
+$env:PYTHONPATH = "."
+.\venv\Scripts\uvicorn gateway.app:app --port 8000
+
+# Verificar portas
 netstat -ano | findstr ":8000\|:8001"
 ```
 
@@ -218,27 +299,35 @@ netstat -ano | findstr ":8000\|:8001"
 ## Perguntas esperadas e respostas
 
 **"O framework está realmente sendo usado?"**
-> Sim. `orchestrator/graph.py` L19–20 importa `ChannelMessage` e `EnterpriseRouter`
-> do `agent_framework` real (vendorizado de `agent_platform_oci/libs/agent_framework`).
-> `gateway/app.py` usa `AgentObserver`. Os contratos são os do framework.
+> Sim. `orchestrator/graph.py` L1–12 importa `ChannelMessage` (SPEC-003),
+> `EnterpriseRouter` (SPEC-004) e `AgentObserver` (SPEC-007-lite) do
+> `agent_framework` real — vendorizado de `agent_platform_oci/libs/`.
+> Os contratos são os do framework; a topologia do grafo é do AI Dev Sr.
 
 **"Por que o roteamento é por palavras-chave e não por LLM?"**
-> Decisão deliberada de PoC — `enable_llm_router: false` em `routing_config.yaml`.
-> Mantém o roteamento determinístico e sem custo de tokens para validar a
-> estrutura do grafo. Ligar o LLM router é mudar uma linha no YAML.
+> Decisão de PoC — `enable_llm_router: false` em `routing_config.yaml`.
+> Mantém determinismo e custo zero de tokens para validar a estrutura do grafo.
+> Ligar o LLM router é mudar uma linha no YAML — sem mudança de código.
 
 **"Onde está o RAG?"**
-> `rag_pipeline/query_api.py` — busca top-5 por similaridade cosine no Chroma,
-> re-rankeia com `BAAI/bge-reranker-v2-m3` (CrossEncoder) e aplica threshold.
-> A evidência vai para `agent/prompt.py` → seção `[CONTEXTO]`.
+> `rag_pipeline/query_api.py` L55–89: busca top-5 por similaridade cosine
+> no Chroma, re-rankeia com CrossEncoder (`BAAI/bge-reranker-v2-m3`)
+> e aplica threshold 0.7. A evidência vai para `agent/prompt.py` → `[CONTEXTO]`.
 
-**"Qual o custo de tokens por request?"**
-> Depende do tamanho do chunk RAG retornado. Estimativa: 400–800 tokens
-> de input (system + contexto RAG + pergunta) + ~150 tokens de output.
-> Modelo: gpt-4o-mini via Flow CI&T.
+**"O CPF realmente não chega ao LLM?"**
+> O mascaramento ocorre em `node_input_guardrails` (grafo),
+> que chama `check_input()` de Gustavo antes de qualquer routing.
+> O `sanitized_input` (com CPF mascarado) é o que chega ao LLM — o original
+> fica só no estado para auditoria. Verificável no trace: `violation=pii`.
+
+**"Quanto custa por request?"**
+> ~400–800 tokens de input (system + contexto RAG + pergunta)
+> + ~150 tokens de output. Modelo: gpt-4o-mini via Flow CI&T.
+> Para o projeto real, o provider muda (OCI Generative AI), não o código.
 
 **"Isso vai para produção como está?"**
-> Não — esta é uma PoC local. O que vai para produção são os contratos,
-> a estrutura do grafo e o aprendizado sobre o framework.
-> A infra (Chroma → ADW real, uvicorn local → OCI, mock_services → agentes reais)
-> é substituída, mas o código de `agent/`, `orchestrator/` e os contratos de dados são reaproveitados.
+> Não — esta é uma PoC local. O que vai para produção são os contratos
+> (QueryResult, GuardrailResult, ChannelMessage), a estrutura do grafo
+> e o aprendizado sobre o framework.
+> A infra (Chroma → ADW real, mock_services → agentes reais, vendoring → PyPI interno)
+> é substituída — o código de `agent/`, `orchestrator/` e os contratos são reaproveitados.
