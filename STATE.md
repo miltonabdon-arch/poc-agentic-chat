@@ -1,164 +1,125 @@
 # State
 
-**Last Updated:** 2026-08-11
+**Last Updated:** 2026-08-17
 **Escopo deste arquivo:** este `STATE.md` é local a este repositório (PoC de 2
 semanas do "Agente de Catálogo"). Ele **não substitui** o `STATE.md` do
-projeto principal do Agente de Planos e Ofertas (POV) — é um resumo extraído
-apenas do contexto que esta PoC referencia em `docs/PROPOSTA-POC.md`,
-`docs/ARQUITETURA.md` e `agent/judge.py`. Decisões de escopo de negócio,
-propostas comerciais e demais blockers do projeto principal vivem no
-`STATE.md` do repositório principal, não aqui.
+projeto principal do Agente de Planos e Ofertas (POV).
 
-**Current Work:** Repositório criado em 2026-08-04 como esqueleto para o
-time implementar (contratos de dados, testes e documentação completos,
-módulos com `NotImplementedError`). Auditoria de 2026-08-05 corrigiu
-vazamentos de solução (thresholds/fórmulas calibradas expostos nos docs),
-migrou CI para GitHub Actions e fechou gaps de teste/lint (ver commit
-`be2ea6b`). Apresentação de kickoff (`docs/apresentacao-poc.html`) adicionada
-em 2026-08-06 para alinhar o time no Dia 1.
+**Current Work:** PoC funcional ponta a ponta. Demo de 5 casos validada via
+HTTP e via `scripts/run_demo.py` com LLM real (Flow CI&T / gpt-4o-mini).
+Branch `feature/orchestrator-agentframework-native` está pronta para PR na
+`main`. Apresentação agendada para 2026-08-18.
 
-**⚠️ AD-008 revertido (2026-08-10) — ver AD-009 abaixo:** o commit AD-008
-(integração real do pacote `agent_framework`) foi revertido porque um dev do
-time (`gbezerra-ciandt`) já havia ramificado e implementado 3 das 4 fatias
-(`agent/prompt.py`, `agent/judge.py`, `agent/guardrails/`) a partir da versão
-**anterior** ao AD-008, sem o framework real integrado. Manter o AD-008 na
-`main` bloquearia o merge desse trabalho com conflitos de reintegração
-manual. **Estado atual do código:** não há mais dependência do
-`agent_framework`/`agent-platform-oci` real em nenhum módulo — `agent/`,
-`gateway/`, `orchestrator/` voltaram a usar apenas bibliotecas genéricas
-(LangGraph, FastAPI, OpenAI client, OpenTelemetry local), como estavam antes
-de 2026-08-07. `docs/ARQUITETURA.md` e `requirements.txt` já refletem essa
-reversão — não citam mais o framework como dependência instalada.
+---
 
-**Achados ainda válidos do double-check de 2026-08-10 (anteriores ao revert):**
-1. **Atraso de cronograma:** o Checkpoint 1 (`docs/PROPOSTA-POC.md`, Dia 5 —
-   "ingestão + RAG funcionando ponta a ponta") já deveria ter ocorrido (repo
-   criado 2026-08-04; hoje é o Dia 7 de um cronograma de 10 dias úteis), mas
-   os 5 módulos de `rag_pipeline/` continuam com `NotImplementedError`
-   (`chunker.py`, `vectorizer.py` [3x], `extractor.py`,
-   `metadata_enricher.py`, `query_api.py`). **Continua em aberto** — é
-   trabalho normal de implementação do time, não um bug a corrigir.
-2. **Coordenação entre branches:** além da branch do `gbezerra-ciandt`
-   (`test_new_branch`), surgiu uma segunda branch (`backend`, de `Kirllen`)
-   também divergente da `main` antes do revert. **Atualização 2026-08-11:**
-   `backend` foi mesclada na `main` via PR #1 (commit `c43df2d`) —
-   implementa `gateway/channel_gateway.py::normalize()` e
-   `orchestrator/graph.py::run_interaction()` (este último com resposta
-   simulada hardcoded, ainda sem grafo LangGraph real) e liga o endpoint
-   `/agent/interact` ponta-a-ponta. `test_new_branch` (`gbezerra-ciandt`)
-   **continua sem PR aberto**, com 4 commits divergentes (`agent/prompt.py`,
-   `agent/judge.py`, `agent/guardrails/input_guardrail.py`,
-   `agent/guardrails/output_guardrail.py`) — é a próxima pendência de merge.
-   O CI de `main` segue vermelho após o merge do PR #1 (14 failed / 5
-   passed) — falha pré-existente e herdada (guardrails/judge/rag_pipeline
-   ainda em `NotImplementedError`), não uma regressão introduzida pelo merge.
+## Status dos Módulos (2026-08-17)
+
+| Módulo | Status | Responsável |
+|---|---|---|
+| `rag_pipeline/vectorizer.py` | ✅ Implementado | Data Engineer (Ana) |
+| `rag_pipeline/query_api.py` | ✅ Implementado (CrossEncoder re-ranking) | Data Engineer (Ana) |
+| `rag_pipeline/extractor.py` | ✅ Implementado | Data Engineer (Ana) |
+| `agent/judge.py` | ✅ Implementado | AI Scientist (Gustavo) |
+| `agent/prompt.py` | ✅ Implementado | AI Scientist (Gustavo) |
+| `agent/guardrails/input_guardrail.py` | ✅ Implementado (PII + out-of-domain) | AI Scientist (Gustavo) |
+| `agent/guardrails/output_guardrail.py` | ✅ Implementado (context-leak + competitor + format) | AI Scientist (Gustavo) |
+| `agent/llm_client.py` | ✅ Implementado + Flow CI&T headers | AI Dev Sr (Igor) |
+| `gateway/app.py` | ✅ Implementado | Backend (Kirllen) |
+| `gateway/channel_gateway.py` | ✅ Implementado | Backend (Kirllen) |
+| `orchestrator/graph.py` — `run_interaction()` | ✅ Implementado (LangGraph real) | AI Dev Sr (Igor/Milton) |
+| `orchestrator/graph.py` — `build_graph()` | ✅ Implementado (11 nós, 3 arestas condicionais) | AI Dev Sr (Igor/Milton) |
+| `mock_services/` | ✅ Implementado (cancellation, deals, plans, CRM) | Backend (Kirllen) |
+
+## Checkpoints da PoC
+
+- [x] **Checkpoint 1 (Dia 5):** ingestão + RAG ponta a ponta — **concluído** (atrasado, entregue até Dia 13)
+- [x] **Checkpoint 2 (Dia 9):** demo end-to-end via HTTP — **concluído** (5/5 casos passando, 2026-08-17)
+- [ ] **Demo final + relatório:** apresentação em 2026-08-18
+
+## Resultados da demo validada (2026-08-17)
+
+```
+[1/5] [Catálogo] Quais franquias de dados o Plano Turbo 40GB inclui?
+      → RAG + LLM: "O Plano Turbo 40GB inclui 40GB de internet 4G/5G e oferece
+        10GB adicionais em um aplicativo parceiro fictício (NetFlow)..."
+
+[2/5] [Catálogo] Existe fidelidade no Plano Família Prime?
+      → RAG + LLM: "Sim, o Plano Família Prime possui fidelidade de 24 meses.
+        Nos primeiros 6 meses, você recebe bônus de 10GB adicionais."
+
+[3/5] [Fora catálogo] Qual o preço do Plano Estratosférico 500GB?
+      → not_found_response() ✓ (plano inexistente no catálogo)
+
+[4/5] [Cancelamento] Quero cancelar minha linha.
+      → handoff mock: "[Agente Retenção] Entendo que deseja cancelar..."
+
+[5/5] [PII masking] Meu CPF é 123.456.789-00, qual meu plano atual?
+      → CPF mascarado pelo input_guardrail antes do LLM ✓
+```
+
+## Testes (2026-08-17)
+
+- **29 testes unitários:** 100% passando (`pytest -m "not integration"`)
+- **5 testes de integração HTTP:** 100% passando via `scripts/test_http.ps1`
+- CI: ruff ✓ → pytest ✓ → docker build ✓
 
 ---
 
 ## Recent Decisions
 
-### AD-007: Adotar `agent_platform_oci` como base técnica obrigatória e confirmada de construção (2026-07-31)
+### AD-010: Vendorizar `agent_framework` para destravar integração real (2026-08-17)
 
-**Decision:** O framework
-[`agent_platform_oci`](https://github.com/hoshikawa2/agent_platform_oci)
-deixa de ser tratado como stack "pendente de confirmação" e passa a ser a
-premissa assumida e obrigatória para todos os agentes e entregáveis já
-especificados do Agente POV — incluindo esta PoC, que existe justamente para
-validar essa premissa na prática (rodar o framework de ponta a ponta, não
-apenas ler a documentação).
-**Reason:** Instrução explícita do usuário no projeto principal (2026-07-31).
-Uma análise documental do repositório público
-(`relatorio-aderencia-agent-platform-oci.md`, no repositório principal) já
-havia confirmado que o framework é real e maduro (20 SPECs internas),
-compatível com a arquitetura desenhada — mas essa análise foi feita apenas
-lendo documentação remota, sem clonar o código nem rodar nada. Esta PoC é o
-próximo passo natural dessa decisão.
-**Impact para esta PoC:** todo o desenho em `docs/ARQUITETURA.md` (Router
-LangGraph, Guardrails, `AgentRuntimeMixin`, Channel Gateway, Observability
-Tracer, Vector Store) é mapeado deliberadamente 1:1 contra as SPECs do
-framework real — ver tabela "Mapeamento para as SPECs do `agent_platform_oci`"
-em `docs/ARQUITETURA.md`.
+**Decision:** Copiar `agent_platform_oci/libs/agent_framework` para
+`vendor/agent_framework/` (gitignored) e instalar via `pip install vendor/agent_framework`
+no Dockerfile. `orchestrator/graph.py` e `gateway/app.py` importam
+`ChannelMessage`, `EnterpriseRouter` e `AgentObserver` do pacote real.
+
+**Reason:** AD-009 reverteu a integração do framework para destravar merges
+do time. Com todas as fatias agora implementadas e mescladas na branch
+`feature/orchestrator-agentframework-native`, a integração real pôde ser
+reintroduzida sem conflitos.
+
+**Impact:** o objetivo central da PoC (validar o framework `agent_platform_oci`
+em ambiente local) está **realizado**. `EnterpriseRouter` roteia via YAML,
+`ChannelMessage` é o contrato de canal, `AgentObserver` emite traces.
 
 ---
 
 ### AD-009: Reverter AD-008 — integração real do `agent_framework` desfeita (2026-08-10)
 
-**Decision:** Reverter o commit `3e80828` (AD-008) na `main`, retirando a
-dependência do pacote `agent_framework` real (instalado via
-`pip install git+...`) de `agent/`, `gateway/`, `orchestrator/`,
-`requirements.txt`, `Dockerfile` e `.env.example`. O código volta a usar
-apenas bibliotecas genéricas (LangGraph, FastAPI, cliente OpenAI padrão,
-OpenTelemetry local) — o estado anterior a 2026-08-07.
-**Reason:** Um dev do time (`gbezerra-ciandt`) já havia ramificado a partir
-do commit anterior ao AD-008 (`f2fc66f`) e implementado de facto 3 das 4
-fatias do esqueleto (`agent/prompt.py`, `agent/judge.py`,
-`agent/guardrails/input_guardrail.py`, `agent/guardrails/output_guardrail.py`)
-sem o framework real integrado. Sem o revert, mesclar esse trabalho exigiria
-reintegrar manualmente o `agent_framework` real em cima do código dele —
-custo desproporcional para uma PoC de 2 semanas, dado que o objetivo central
-da PoC (validar a viabilidade arquitetural do framework) pode ser retomado
-depois, sem descartar o trabalho já implementado pelo time.
-**Impact:** o achado do judge panel que motivou o AD-008 (nenhum módulo
-integrava de fato o `agent_platform_oci`) volta a ser verdade — está
-novamente registrado como risco aberto, não resolvido. Se a integração real
-for retomada depois, refazer sobre o código já implementado pelo time
-(não voltar a repetir o AD-008 do zero), para não gerar um terceiro
-ciclo de revert.
-**Resolution:** aberto — decidir com o time quando/se reintroduzir a
-integração real do framework, agora que as fatias de `agent/` já têm
-implementação própria em andamento.
+**Decision:** Reverter o commit `3e80828` (AD-008) na `main` para destravar
+merge do trabalho de `gbezerra-ciandt` (`test_new_branch`).
+**Resolution:** resolvido em 2026-08-17 via AD-010 (vendoring).
 
 ---
 
-## Active Blockers (relevantes para esta PoC)
+### AD-007: Adotar `agent_platform_oci` como base técnica obrigatória (2026-07-31)
 
-### B-006 (herdado, rebaixado): Divergência entre instância OCI real e repositório público analisado
-
-**Status:** não bloqueia esta PoC — é o risco remanescente que a PoC existe
-para reduzir na parte que está sob seu controle (a base pública), não na
-parte que não está (customizações internas não divulgadas da TIM/Oracle).
-**Impact:** se a instância real do `agent_platform_oci` que a TIM provisionar
-divergir do repositório público analisado (fork/customização interna), parte
-do aprendizado desta PoC sobre contratos de dados e mapeamento de SPECs pode
-precisar de ajuste no projeto real.
-**Mitigação nesta PoC:** os 3 contratos de dados (`QueryResult`,
-`GuardrailResult`, `Interaction`) seguem deliberadamente o mesmo vocabulário
-dos designs já produzidos no projeto principal — qualquer aprendizado desta
-PoC sobre esses contratos é diretamente reaproveitável, reduzindo (não
-eliminando) esse risco.
-**Resolution:** fora do controle desta PoC — depende de confirmação da
-TIM/Oracle sobre a instância real, acompanhada no `STATE.md` do projeto
-principal.
+**Decision:** Framework confirmado como premissa obrigatória para o projeto real.
+**Resolution:** validado por esta PoC — framework rodando ponta a ponta em ambiente local.
 
 ---
 
-## Deferred Ideas (relevantes para esta PoC)
+## Active Blockers
 
-- [ ] Judge leve offline com Golden Standard Dataset completo — esta PoC
-  implementa apenas uma checagem simples por amostragem (ver
-  `agent/judge.py`, `docs/ARQUITETURA.md`); o Golden Standard Dataset
-  completo é Deferred Idea do projeto principal, fora do escopo das 2
-  semanas desta PoC.
-- [ ] State Store real compartilhado entre agentes (Redis/AlloyDB) — próxima
-  extensão natural sugerida no `README.md` desta PoC, não implementada.
+Nenhum blocker ativo. PoC funcional para apresentação.
+
+### B-006 (rebaixado): Divergência entre instância OCI real e repositório público
+
+**Status:** não bloqueia esta PoC. Risco remanescente para o projeto real —
+depende de confirmação da TIM/Oracle sobre a instância interna.
 
 ---
 
-## Todos (desta PoC)
+## Todos
 
-- [x] AD-009: reverter AD-008 para destravar merge do trabalho já em
-  andamento sobre a base sem o framework real — 2026-08-10.
-- [x] Mesclar `backend` (`Kirllen`) na `main` — feito via PR #1
-  (commit `c43df2d`), 2026-08-11.
-- [ ] Mesclar `test_new_branch` (`gbezerra-ciandt`) na `main` — ainda sem
-  PR aberto; revisar se corrige as 5 falhas de `tests/test_agent.py`
-  hoje vermelhas em `main` por `NotImplementedError` em
-  `agent/guardrails/`, `agent/prompt.py`, `agent/judge.py`.
-- [ ] Concluir as 4 fatias de implementação (Data Engineer, AI Scientist,
-  Backend/Integração, AI Developer Sr) — ver `docs/PAPEIS-E-ENTREGAVEIS.md`
-- [ ] **Checkpoint 1 (Dia 5): ATRASADO** — ingestão + RAG ainda não
-  funciona ponta a ponta (5 módulos de `rag_pipeline/` seguem com
-  `NotImplementedError` em 2026-08-10, Dia 7 do cronograma de 10 dias)
-- [ ] Checkpoint 2 (Dia 9): primeira demo end-to-end via `docker-compose up`
-- [ ] Demo final + relatório de achados técnicos (1-2 páginas) sobre o
-  `agent_platform_oci` — ver `docs/PROPOSTA-POC.md`, seção 10
+- [x] Mesclar `backend` (Kirllen) na `main` — PR #1, 2026-08-11
+- [x] Mesclar `test_new_branch` (Gustavo) na `feature/orchestrator-agentframework-native` — 2026-08-17
+- [x] Integração real do `agent_framework` via vendoring — AD-010, 2026-08-17
+- [x] Integração Flow CI&T LiteLLM (`LLM_BASE_URL`, `FLOW_TENANT`, `FLOW_AGENT`) — 2026-08-17
+- [x] Demo ponta a ponta validada — 5/5 casos, 2026-08-17
+- [x] 29 testes unitários verdes — 2026-08-17
+- [ ] **PR: `feature/orchestrator-agentframework-native` → `main`** (próximo passo)
+- [ ] Relatório de achados técnicos sobre o `agent_platform_oci` (pós-apresentação)
+- [ ] Judge leve com Golden Standard Dataset completo (Deferred — projeto real)
+- [ ] State Store real compartilhado (Deferred — projeto real)
