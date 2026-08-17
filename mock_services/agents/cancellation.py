@@ -13,7 +13,6 @@ CONTRA_OFERTAS = [
 
 @router.post("/interact")
 def interact(body: dict):
-    msg = body.get("message", "").lower()
     oferta = random.choice(CONTRA_OFERTAS)
     return {
         "conversation_id": body.get("conversation_id"),

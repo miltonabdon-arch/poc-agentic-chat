@@ -1,17 +1,7 @@
-"""Runtime FastAPI - wrapper minimo equivalente a AgentRuntimeMixin (SPEC-002).
+"""Runtime FastAPI — wrapper do orquestrador LangGraph.
 
-Deve expor POST /agent/interact, delegando para o orquestrador
-(orchestrator/graph.py).
-
-TODO (Backend/Integração): implementar o endpoint POST /agent/interact.
-
-Contrato (ver tests/test_gateway.py e docs/CRITERIOS-DE-ACEITE.md):
-- Recebe {"message": str, "conversation_id": str | None}
-- Normaliza via gateway.channel_gateway.normalize()
-- Delega para orchestrator.graph.run_interaction()
-- Retorna {"conversation_id": str, "response": str}
-- GET /health já está implementado (gateway/health.py) e deve ser exposto
-  aqui também
+Expõe POST /agent/interact delegando para orchestrator.graph.run_interaction().
+run_interaction é async; FastAPI suporta endpoints async nativamente.
 """
 
 from pathlib import Path
@@ -23,11 +13,11 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from gateway.channel_gateway import normalize  # noqa: E402
-from gateway.health import report_health  # noqa: E402
-from orchestrator.graph import run_interaction  # noqa: E402
+from gateway.channel_gateway import normalize
+from gateway.health import report_health
+from orchestrator.graph import run_interaction
 
-app = FastAPI(title="PoC Agente de Catálogo")
+app = FastAPI(title="PoC Agente de Catálogo TIM")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -55,7 +45,10 @@ def chat_ui():
 
 
 @app.post("/agent/interact", response_model=InteractResponse)
-def interact(request: InteractRequest):
-    interaction = normalize(request.message, request.conversation_id)
-    response_text = run_interaction(interaction)
-    return InteractResponse(conversation_id=interaction.conversation_id, response=response_text)
+async def interact(request: InteractRequest):
+    channel_message = normalize(request.message, request.conversation_id)
+    response_text = await run_interaction(channel_message)
+    return InteractResponse(
+        conversation_id=channel_message.session_id,
+        response=response_text,
+    )

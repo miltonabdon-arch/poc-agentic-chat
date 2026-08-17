@@ -1,29 +1,19 @@
-"""Channel Gateway (mock SSE) - equivalente simplificado de SPEC-009.
-
-Normaliza uma requisicao de teste para o contrato Interaction. Simula, sem
-implementar de fato, o formato do contrato SSE/TIA real (aguardando
-"Adendo A" - ver integracao-sse-tia/spec.md no projeto principal).
-
-TODO (Backend/Integração): implementar normalize() para satisfazer os
-testes de tests/test_gateway.py.
-
-Contrato (ver Interaction em gateway/models.py):
-- conversation_id: usar o valor recebido, ou gerar um novo (ex.: uuid4) se
-  não for fornecido
-- channel: "mock_sse"
-- timestamp: horário atual em UTC, formato ISO 8601
+"""Channel Gateway (mock SSE) — normaliza a requisição para ChannelMessage
+do agent_framework (contrato nativo), simulando o canal SSE/TIA real.
 """
 
 import uuid
 from datetime import datetime, timezone
 
-from gateway.models import Interaction
+from agent_framework.channels.base import ChannelMessage
 
 
-def normalize(raw_message: str, conversation_id: str | None = None) -> Interaction:
-    return Interaction(
-        conversation_id=conversation_id or str(uuid.uuid4()),
+def normalize(raw_message: str, conversation_id: str | None = None) -> ChannelMessage:
+    return ChannelMessage(
         channel="mock_sse",
-        message=raw_message,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        channel_id="tim-poc",
+        session_id=conversation_id or str(uuid.uuid4()),
+        user_id="anonymous",
+        text=raw_message,
+        context={"timestamp": datetime.now(timezone.utc).isoformat()},
     )
