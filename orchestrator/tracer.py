@@ -17,7 +17,6 @@ Duas camadas de emissão, conforme CRITERIOS-DE-ACEITE §6:
 """
 
 import logging
-import time
 
 from agent_framework.channels.base import ChannelMessage
 from agent_framework.observability.observer import AgentObserver

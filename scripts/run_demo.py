@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from gateway.channel_gateway import normalize
-from orchestrator.graph import run_interaction
+from gateway.channel_gateway import normalize  # noqa: E402
+from orchestrator.graph import run_interaction  # noqa: E402
 
 PERGUNTAS_DEMO = [
     ("Catálogo",     "Quais franquias de dados o Plano Turbo 40GB inclui?"),
