@@ -24,6 +24,11 @@ python scripts/run_ingestao.py
 # Demo ponta a ponta (5 perguntas de docs/CRITERIOS-DE-ACEITE.md)
 python scripts/run_demo.py
 
+# Demo interativa com UI Chainlit (3 terminais separados ou via VSCode "Apresentação Completa")
+scripts/start_mock.ps1        # terminal 1 — mock services :8001
+scripts/start_gateway.ps1     # terminal 2 — gateway :8000
+scripts/start_chainlit.ps1    # terminal 3 — UI Chainlit :8080
+
 # Serviço completo (FastAPI gateway + mock services)
 docker compose up -d
 
@@ -51,18 +56,25 @@ Cada módulo é de responsabilidade de um papel do time (ver
 [`docs/PAPEIS-E-ENTREGAVEIS.md`](docs/PAPEIS-E-ENTREGAVEIS.md)):
 
 ```
-rag_pipeline/     ← Data Engineer: ingestão Markdown → Chroma + API de consulta RAG
-agent/            ← AI Scientist: prompt, guardrails input/output, judge offline
-gateway/          ← Backend/Integração: FastAPI runtime + Channel Gateway (mock SSE)
-orchestrator/     ← AI Developer Sr: grafo LangGraph + OpenTelemetry tracer
-mock_services/    ← Backend/Integração: agentes externos mockados (cancellation, deals, plans) + CRM fake
-data/catalogo/    ← dados sintéticos de entrada da ingestão (arquivos .md com front-matter)
+rag_pipeline/                   ← Data Engineer: ingestão Markdown → Chroma + API de consulta RAG
+agent/                          ← AI Scientist: prompt, guardrails input/output, judge offline
+gateway/                        ← Backend/Integração: FastAPI runtime + Channel Gateway + SSE /trace
+orchestrator/                   ← AI Developer Sr: grafo LangGraph + tracer 3 camadas + broadcaster
+orchestrator/trace_broadcaster.py ← pub/sub asyncio.Queue entre tracer e consumidores SSE/Chainlit
+mock_services/                  ← Backend/Integração: agentes externos mockados (cancellation, deals, plans) + CRM fake
+chainlit_app.py                 ← UI demo: cliente HTTP do gateway, exibe eventos SSE como steps
+data/catalogo/                  ← dados sintéticos de entrada da ingestão (arquivos .md com front-matter)
 ```
 
-**Fluxo de uma requisição:**
+**Fluxo de uma requisição (API):**
 `POST /agent/interact` → `gateway/app.py` → `gateway/channel_gateway.normalize()` →
 `orchestrator/graph.run_interaction()` → guardrail de input → agente (RAG + LLM) →
 guardrail de output → resposta.
+
+**Fluxo de observabilidade em tempo real (UI Chainlit):**
+`chainlit_app.py` abre `GET /trace` (SSE) antes de enviar a mensagem → cada nó do grafo
+chama `orchestrator/tracer.py` → tracer publica em `trace_broadcaster.py` → broadcaster
+entrega o evento na fila SSE do cliente → Chainlit exibe como step expansível.
 
 `orchestrator/graph.run_interaction()` detecta a intenção do usuário por palavras-chave e
 encaminha para: o fluxo RAG do catálogo, ou handoff para `mock_services` (cancellation/deals),
@@ -83,8 +95,11 @@ Três structs são a cola entre as fatias (definidas em `rag_pipeline/models.py`
 
 Módulos já implementados (código funcional, não `NotImplementedError`):
 
-- `gateway/app.py`, `gateway/channel_gateway.py` — endpoint HTTP + normalização
-- `orchestrator/graph.py` (`run_interaction`) — roteamento por intenção + handoff para mock_services
+- `gateway/app.py`, `gateway/channel_gateway.py` — `POST /agent/interact`, `GET /trace` (SSE), redirect `/chainlit`
+- `orchestrator/graph.py` (`run_interaction`) — roteamento por intenção + handoff para mock_services + publica SUMARIO no broadcaster
+- `orchestrator/trace_broadcaster.py` — pub/sub asyncio.Queue para SSE e Chainlit
+- `orchestrator/tracer.py` — 3 camadas: OCI publisher, log local legível, broadcaster SSE
+- `chainlit_app.py` — UI demo interativa; consome `/trace` SSE e `POST /agent/interact` via HTTP
 - `mock_services/` — agentes externos mock (cancellation, deals, plans) + CRM fake
 - `rag_pipeline/vectorizer.py` — Chroma com modelo multilíngue (`paraphrase-multilingual-MiniLM-L12-v2`) e métrica cosine
 - `rag_pipeline/query_api.py` — busca por similaridade com re-ranking via `CrossEncoder` (BAAI/bge-reranker-v2-m3)
@@ -105,6 +120,8 @@ Módulos ainda com `NotImplementedError` (aguardam merge de `test_new_branch`):
 - **Orquestração:** LangGraph — mesma lib do `agent_platform_oci` real. O grafo LangGraph completo (`build_graph`) ainda não está implementado; `run_interaction` usa roteamento por palavras-chave como interim.
 - **Framework `agent_platform_oci`:** integração real foi tentada (AD-008) e revertida (AD-009) para destravar os merges do time. Código atual usa apenas FastAPI, LangGraph, OpenAI client e OpenTelemetry local.
 - **Mock services:** `mock_services/` roda como serviço separado (`http://mock-services:8001` no Docker Compose) e simula CRM, agente de cancelamento, agente de deals e simulação de planos.
+- **UI de demo:** Chainlit standalone em `:8080`. `chainlit_app.py` não importa nenhum módulo interno — comunica-se exclusivamente via HTTP com o gateway (`POST /agent/interact`, `GET /trace`). Isso garante que a UI não acople a camada de apresentação à lógica do orquestrador.
+- **Observabilidade — 3 camadas:** `orchestrator/tracer.py` publica cada evento em (1) OCI publisher (produção), (2) log local estruturado e legível por humanos, e (3) `trace_broadcaster.py` (asyncio.Queue) para clientes SSE em tempo real. O broadcaster usa padrão pub/sub: cada `GET /trace` recebe sua própria fila independente.
 
 ## Pendências críticas (STATE.md)
 

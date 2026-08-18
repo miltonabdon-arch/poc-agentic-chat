@@ -60,22 +60,29 @@ Invoke-RestMethod -Uri "http://localhost:8000/health"
 # Retorno esperado: {"status":"ok"}
 ```
 
-**4. Smoke test** (confirmar RAG antes de entrar na sala)
+**4. Abrir as abas do browser (deixar prontas antes da sala)**
 
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/agent/interact" `
-  -Method POST -ContentType "application/json" `
-  -Body '{"message": "Quais franquias de dados o Plano Turbo 40GB inclui?"}'
-# Deve retornar resposta mencionando "40GB" — não a mensagem de fallback
+| Aba | URL | Para quê |
+|-----|-----|----------|
+| Tab 1 | `http://localhost:8000/trace-ui` | Diagrama de arquitetura (Blocos 2–4) |
+| Tab 2 | `http://localhost:8000/chainlit` | Chat + TaskList ao vivo (Bloco 5) |
+
+**5. Smoke test** (absorver warm-up E confirmar RAG)
+
+Na **Tab 2 (Chainlit)**, digitar no chat:
 ```
+Quais franquias de dados o Plano Turbo 40GB inclui?
+```
+Aguardar o TaskList completar todos os nós (✅ ✅ ✅ ✅ ✅) e verificar se
+a resposta menciona "40GB" — não a mensagem de fallback.
 
-Se o smoke test falhar: verificar logs no terminal integrado do VS Code antes de entrar na sala.
+Se falhar: verificar logs no terminal integrado do VS Code antes de entrar na sala.
 
 > **Atenção — warm-up do modelo:** a primeira requisição após subir o cluster
 > demora 30–60s porque o `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`)
 > e o CrossEncoder (`BAAI/bge-reranker-v2-m3`) carregam os pesos em memória na
 > primeira chamada. As chamadas seguintes são imediatas — o modelo fica em memória
-> enquanto o processo estiver de pé. **O smoke test (passo 4 acima) serve exatamente
+> enquanto o processo estiver de pé. **O smoke test (passo 5 acima) serve exatamente
 > para absorver esse warm-up antes de entrar na sala.** Nunca faça a primeira
 > requisição ao vivo na frente da audiência.
 
@@ -201,63 +208,81 @@ Igor         → build_graph(), run_interaction()
 
 ## Bloco 5 — DEMO AO VIVO (8 min)
 
-**Pré-requisito:** cluster rodando.
+**Tela principal:** Tab 2 — `http://localhost:8000/chainlit`
+**Tela de apoio (abrir quando quiser mostrar arquitetura):** Tab 1 — `http://localhost:8000/trace-ui`
 
-```powershell
-# Verificar saúde antes de rodar qualquer demo
-Invoke-RestMethod -Uri "http://localhost:8000/health"
-# Deve retornar: {"status":"ok","chroma":"ok"}
-```
-
-### Executar:
-```powershell
-cd c:\projects\ciandt\tim\src\poc-agentic-chat
-.\scripts\test_http.ps1
-```
+> O painel "Tasks" à direita do Chainlit é o "debaixo do capô" da PoC:
+> mostra em tempo real qual nó do grafo está em execução, quem é o responsável,
+> e ao final permite expandir "Used LangGraph" para ver o input/output de cada nó.
 
 ### Casos e narrativa de cada um:
 
 **[CASO 1/7] §3 — RAG: Franquia do Turbo 40GB**
-> "Pergunta real, plano real no catálogo."
-- Resultado esperado: "40GB de internet 4G/5G e 10GB adicionais via NetFlow"
-- Narrativa: "O RAG localizou o chunk em Ana, o prompt de Gustavo montou o contexto, o LLM do Flow CI&T respondeu. Sem hardcode."
-- Trace a mostrar no log: `chunk_id=turbo-40gb#Franquia`
+
+Digitar no Chainlit:
+```
+Quais franquias de dados o Plano Turbo 40GB inclui?
+```
+- Enquanto o pipeline roda: mostrar o TaskList acendendo nó a nó
+- TaskList esperado: `catalog_agent` aparece dinamicamente entre `routing_decision` e `output_guardrails`
+- Resposta esperada: menciona "40GB" e "NetFlow"
+- Após a resposta: clicar em "Used LangGraph" → expandir `catalog_agent` → mostrar o `QueryResult` com `chunk_id=turbo-40gb#Franquia`
+- Fala: *"O RAG localizou o chunk de Ana. O prompt de Gustavo montou o contexto. O LLM do Flow CI&T respondeu. Tudo passando pelos contratos que acordamos no kickoff."*
 
 **[CASO 2/7] §3 — RAG: Fidelidade do Família Prime**
-> "Segundo plano, mesma pipeline — valida que não é um caso especial."
-- Resultado esperado: "fidelidade de 24 meses... bônus de 10GB"
-- Trace: `chunk_id=familia-prime#Fidelidade`
+
+```
+Qual o período de fidelidade do TIM Família Prime?
+```
+- Mesmo fluxo — valida que não é caso especial
+- Resposta esperada: menciona "24 meses" e "bônus"
+- Fala: *"Segundo plano, mesma pipeline. O Chroma discrimina os chunks."*
 
 **[CASO 3/7] §3 — RAG: Multa do Controle 20GB**
-> "Terceiro tipo de dado — valor monetário. O LLM responde com R$240,00 porque o documento diz R$240,00."
-- Resultado esperado: "R$ 240,00"
-- Trace: `chunk_id=controle-20gb#Multa de cancelamento`
+
+```
+Qual o valor da multa de cancelamento do Controle 20GB?
+```
+- Resposta esperada: "R$ 240,00"
+- Fala: *"Valor monetário extraído do documento — o LLM responde R$ 240,00 porque o documento diz R$ 240,00. Sem hardcode."*
 
 **[CASO 4/7] §4 — Fora do catálogo**
-> "Plano que não existe."
-- Resultado esperado: `"Não encontrei essa informação no catálogo..."`
-- Narrativa: "O RAG retornou `found=False`. O grafo nunca chamou o LLM.
-  `build_prompt()` de Gustavo retornou `None` — é a regra mais importante da PoC."
-- Trace: `chunk_id=nenhum`
+
+```
+Quais são os benefícios do plano TIM Ultra Infinity Premium?
+```
+- TaskList: `catalog_agent` aparece e conclui
+- Resposta esperada: "Não encontrei essa informação no catálogo..."
+- Após resposta: expandir step `catalog_agent` → mostrar `found=False` no QueryResult
+- Fala: *"O RAG retornou `found=False`. O grafo nunca chamou o LLM. `build_prompt()` de Gustavo retornou `None` — decisão de design que evita alucinação."*
 
 **[CASO 5/7] §5a — PII masking: CPF**
-> "Mensagem com CPF de teste."
-- Resultado esperado: CPF não aparece na resposta nem no log
-- Narrativa: "O guardrail de input de Gustavo rodou antes de qualquer chamada ao LLM.
-  O dado sensível nunca chegou ao modelo."
-- Trace: `guardrails_acionados=['input:pii']`
+
+```
+Meu CPF é 123.456.789-00, qual o melhor plano para mim?
+```
+- TaskList: `input_guardrails` conclui rápido (sem LLM)
+- Resposta esperada: CPF não aparece na resposta
+- Após resposta: expandir step `input_guardrails` → mostrar `violation=pii`
+- Fala: *"O guardrail de Gustavo rodou antes de qualquer routing. O CPF nunca chegou ao LLM — está no `sanitized_input` mascarado."*
 
 **[CASO 6/7] §5b — Output guardrail: concorrente**
-> "Pergunta que tenta forçar comparação com concorrente."
-- Resultado esperado: "outra operadora" onde estaria "OperadoraZ"
-- Narrativa: "O LLM pode mencionar um concorrente na saída — o guardrail de output
-  mascara antes de devolver ao canal."
+
+```
+A Vivo é melhor que a TIM nos planos de internet?
+```
+- TaskList: `output_guardrails` conclui (verificação de saída)
+- Resposta esperada: "outra operadora" onde estaria "Vivo"
+- Fala: *"O LLM pode mencionar um concorrente. O guardrail de output mascara antes de devolver ao canal — Gustavo implementou, o grafo aplica automaticamente."*
 
 **[CASO 7/7] §5b — Handoff: cancelamento**
-> "Intenção clara de cancelar."
-- Resultado esperado: "[Agente Retenção] Entendo que deseja cancelar..."
-- Narrativa: "O EnterpriseRouter do framework detectou a intenção `cancellation_request`.
-  O grafo fez handoff para o mock do Agente de Retenção de Kirllen."
+
+```
+Quero cancelar meu plano TIM
+```
+- TaskList: `handoff_cancellation` aparece (não `catalog_agent`)
+- Resposta esperada: "[Agente Retenção] Entendo que deseja cancelar..."
+- Fala: *"O EnterpriseRouter do framework detectou `cancellation_request`. O grafo fez handoff para o mock do Agente de Retenção de Kirllen — sem alterar uma linha do código de routing, só o YAML."*
 
 ---
 

@@ -26,6 +26,9 @@ intents:
       - pré-pago
       - fidelidade
       - multa
+      - cobertura
+      - 5g
+      - 4g
     priority: 2
     enabled: true
     domain: catalog

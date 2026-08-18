@@ -13,3 +13,6 @@ ESCOPO TÉCNICO.txt
 .DS_Store
 vendor/
 .playwright-mcp/
+.chainlit/
+gw_err.log
+gw.log

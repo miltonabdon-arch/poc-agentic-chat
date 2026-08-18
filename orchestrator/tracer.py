@@ -20,6 +20,7 @@ import logging
 
 from agent_framework.channels.base import ChannelMessage
 from agent_framework.observability.observer import AgentObserver
+from orchestrator.trace_broadcaster import get_broadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,9 @@ async def trace_interaction(
 
     # Camada 2: log local legível — atende §6 sem depender do publisher OCI
     _log_evento_local(event_type, dados)
+
+    # Camada 3: broadcaster para Chainlit TaskList e SSE do diagrama HTML
+    await get_broadcaster().publish({"type": event_type, **dados})
 
 
 def _log_evento_local(event_type: str, dados: dict) -> None:

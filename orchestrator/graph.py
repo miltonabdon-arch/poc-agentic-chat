@@ -259,7 +259,10 @@ _compiled_graph = build_graph().compile()
 # Entrypoint público
 # ---------------------------------------------------------------------------
 
-async def run_interaction(channel_message: ChannelMessage) -> str:
+async def run_interaction(
+    channel_message: ChannelMessage,
+    config: dict | None = None,
+) -> str:
     await trace_interaction("IC", channel_message, {"text": channel_message.text})
 
     t_inicio = time.perf_counter()
@@ -276,7 +279,7 @@ async def run_interaction(channel_message: ChannelMessage) -> str:
         chunk_id=None,
     )
 
-    final_state = await _compiled_graph.ainvoke(initial_state)
+    final_state = await _compiled_graph.ainvoke(initial_state, config=config or {})
 
     # Sumário de observabilidade ao final do fluxo — CRITERIOS-DE-ACEITE §6.
     # Agrega latência total, chunk usado e guardrails acionados numa linha legível.
@@ -287,6 +290,15 @@ async def run_interaction(channel_message: ChannelMessage) -> str:
         chunk_id=final_state.get("chunk_id"),
         guardrail_decisions=final_state.get("guardrail_decisions") or [],
     )
+
+    # Publica SUMARIO no broadcaster — Chainlit e SSE usam para finalizar o fluxo visual.
+    from orchestrator.trace_broadcaster import get_broadcaster
+    await get_broadcaster().publish({
+        "type": "SUMARIO",
+        "session_id": channel_message.session_id,
+        "latencia_ms": latencia_ms,
+        "chunk_id": final_state.get("chunk_id"),
+    })
 
     return final_state.get("final_answer") or final_state.get("answer") or ""
 
