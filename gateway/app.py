@@ -14,8 +14,11 @@ Contrato (ver tests/test_gateway.py e docs/CRITERIOS-DE-ACEITE.md):
   aqui também
 """
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -25,6 +28,8 @@ from gateway.health import report_health  # noqa: E402
 from orchestrator.graph import run_interaction  # noqa: E402
 
 app = FastAPI(title="PoC Agente de Catálogo")
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 class InteractRequest(BaseModel):
@@ -40,6 +45,13 @@ class InteractResponse(BaseModel):
 @app.get("/health")
 def health():
     return report_health()
+
+
+@app.get("/chat")
+def chat_ui():
+    """Chat HTML mínimo para validação manual — não é frontend de produção,
+    ver docs/CRITERIOS-DE-ACEITE.md para o checklist formal de demo."""
+    return FileResponse(STATIC_DIR / "chat.html")
 
 
 @app.post("/agent/interact", response_model=InteractResponse)
