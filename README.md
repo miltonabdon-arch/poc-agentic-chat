@@ -63,6 +63,16 @@ docker compose up -d                    # opcional: sobe o serviço FastAPI comp
 
 Detalhes de cada etapa em `docs/INGESTAO.md` e `docs/ARQUITETURA.md`.
 
+## Validação manual via chat
+
+Com o serviço FastAPI no ar (`docker compose up -d` ou `uvicorn gateway.app:app`),
+abrir `http://localhost:8000/chat` no navegador expõe um chat HTML mínimo
+(`gateway/static/chat.html`, sem build/dependência) que chama
+`POST /agent/interact` diretamente — útil para validar visualmente o
+funcionamento depois que as 4 fatias estiverem integradas, com atalhos para
+as 5 perguntas de `docs/CRITERIOS-DE-ACEITE.md`. Não é frontend de produção
+nem substitui o checklist formal de demo.
+
 ## Estado do repositório
 
 Este repositório contém os **contratos de dados, testes e documentação
