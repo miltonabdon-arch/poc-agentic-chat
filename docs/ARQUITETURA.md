@@ -72,7 +72,7 @@ implementa — é o que a PoC valida na prática.
 |---|---|---|
 | Router / Grafo LangGraph | Enterprise Router / Supervisor (LangGraph workflow) | Sem roteamento entre múltiplas jornadas — só um único fluxo de consulta |
 | Guardrails Input/Output | SPEC-005 (Guardrails) | Regras determinísticas simples (regex/lista) em vez do conjunto completo de classificadores de produção |
-| `AgentRuntimeMixin` (via wrapper FastAPI) | SPEC-002 (Agent Runtime) | Implementação mínima que expõe a interface esperada, sem todas as capacidades de runtime de produção |
+| `AgentRuntimeMixin` (via wrapper FastAPI) | SPEC-002 (Agent Runtime) | Implementação mínima **inspirada na interface esperada** — `gateway/app.py` não herda nem instancia a classe real `AgentRuntimeMixin` do framework (`libs/agent_framework/.../runtime/agent_runtime.py`); é um `FastAPI()` implementado do zero, sem as capacidades de runtime de produção |
 | Channel Gateway (mock SSE) | SPEC-009 (Channel Gateway) | Simula o contrato de entrada/saída, não implementa o contrato SSE/TIA real (aguardando "Adendo A", ver [`docs/referencias/integracao-sse-tia-spec-resumo.md`](referencias/integracao-sse-tia-spec-resumo.md)) |
 | Observability Tracer | SPEC-007 (Observabilidade — Langfuse + OpenTelemetry + eventos IC/NOC/GRL) | OpenTelemetry local (console/arquivo), sem Langfuse gerenciado nem eventos IC/NOC/GRL reais |
 | Judge leve offline | SPEC-006 (Evals) | Uma checagem simples por amostragem, não o Golden Standard Dataset completo (Deferred Idea em `STATE.md`) |

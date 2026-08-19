@@ -12,11 +12,14 @@
 Os três contratos centrais do framework funcionaram exatamente como a análise
 documental havia previsto:
 
-- `ChannelMessage` (SPEC-003): normalizou a entrada do gateway sem nenhuma adaptação.
-  O campo `session_id` foi suficiente para rastreabilidade de ponta a ponta.
-- `EnterpriseRouter` (SPEC-004): roteamento por arquivo YAML sem nenhum código
-  adicional — basta declarar os intents, keywords e o agente-alvo.
-  Adicionou 7 intents em minutos.
+- `ChannelMessage` (relacionado ao SPEC-009 — Channel Gateway; a classe em si
+  não é nomeada em nenhuma SPEC específica): normalizou a entrada do gateway
+  sem nenhuma adaptação. O campo `session_id` foi suficiente para
+  rastreabilidade de ponta a ponta.
+- `EnterpriseRouter` (implementação do "Router Node" genérico descrito no
+  SPEC-002 — Agent Runtime; não há SPEC dedicado ao nome `EnterpriseRouter`):
+  roteamento por arquivo YAML sem nenhum código adicional — basta declarar
+  os intents, keywords e o agente-alvo. Adicionou 7 intents em minutos.
 - `AgentObserver` (SPEC-007-lite): a interface `emit(event_type, payload)` integrou
   sem falhas. Em modo noop (sem `analytics` nem `event_bus`) não lança exceção —
   o try/except do tracer captura e continua silenciosamente.
