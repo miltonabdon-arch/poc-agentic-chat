@@ -10,3 +10,9 @@ chroma_data_*/
 .coverage
 htmlcov/
 ESCOPO TÉCNICO.txt
+.DS_Store
+vendor/
+.playwright-mcp/
+.chainlit/
+gw_err.log
+gw.log

@@ -15,6 +15,7 @@ Contrato (ver ExtractedDocument em rag_pipeline/models.py):
 """
 
 from pathlib import Path
+
 import frontmatter
 
 from rag_pipeline.models import ExtractedDocument

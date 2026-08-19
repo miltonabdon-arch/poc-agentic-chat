@@ -12,9 +12,15 @@ from openai import OpenAI
 
 
 def get_client() -> OpenAI:
+    extra_headers: dict[str, str] = {}
+    if os.environ.get("FLOW_TENANT"):
+        extra_headers["FlowTenant"] = os.environ["FLOW_TENANT"]
+    if os.environ.get("FLOW_AGENT"):
+        extra_headers["FlowAgent"] = os.environ["FLOW_AGENT"]
     return OpenAI(
         base_url=os.environ.get("LLM_BASE_URL"),
         api_key=os.environ.get("LLM_API_KEY", "not-needed-for-local-mock"),
+        default_headers=extra_headers or None,
     )
 
 

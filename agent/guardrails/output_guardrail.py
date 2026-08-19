@@ -18,8 +18,8 @@ import re
 
 from agent.models import Action, GuardrailResult, Violation
 
-# Lista fictícia de concorrentes para fins da PoC.
-_COMPETITOR_NAMES = ["OperadoraZ", "TeleConecta", "FastMóvel"]
+# Concorrentes reais + nomes fictícios usados nos testes BDD.
+_COMPETITOR_NAMES = ["Claro", "Vivo", "Oi", "Net", "OperadoraZ", "TeleConecta", "FastMóvel"]
 _COMPETITOR_RES = [
     re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE)
     for name in _COMPETITOR_NAMES

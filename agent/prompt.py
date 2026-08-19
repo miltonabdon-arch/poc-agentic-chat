@@ -26,7 +26,6 @@ from dataclasses import dataclass, field
 
 from rag_pipeline.models import QueryResult
 
-
 # ---------------------------------------------------------------------------
 # Contratos de contexto externo (MCP / APIs)
 # ---------------------------------------------------------------------------

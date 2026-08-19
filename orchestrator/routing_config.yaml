@@ -1,0 +1,115 @@
+router:
+  fallback_agent: supervisor_agent
+  enable_llm_router: false
+
+intents:
+  - name: catalog_query
+    description: Perguntas sobre planos, pacotes e ofertas do catálogo TIM
+    agent: catalog_agent
+    keywords:
+      - plano
+      - pacote
+      - oferta
+      - internet
+      - ligação
+      - benefício
+      - contratar
+      - gigas
+      - gb
+      - franquia
+      - dados
+      - inclui
+      - turbo
+      - controle
+      - família
+      - prime
+      - pré-pago
+      - fidelidade
+      - multa
+      - cobertura
+      - 5g
+      - 4g
+    priority: 2
+    enabled: true
+    domain: catalog
+
+  - name: billing_query
+    description: Perguntas sobre fatura, cobrança e segunda via
+    agent: billing_agent
+    keywords:
+      - fatura
+      - boleto
+      - pagamento
+      - vencimento
+      - segunda via
+      - débito
+      - cobrança
+      - conta
+      - valor
+    priority: 2
+    enabled: true
+    domain: billing
+
+  - name: cancellation_request
+    description: Intenção de cancelar linha ou serviço
+    agent: cancellation_agent
+    keywords:
+      - cancelar
+      - desativar
+      - encerrar
+      - rescisão
+      - sair
+    priority: 1
+    enabled: true
+    domain: cancellation
+
+  - name: deals_request
+    description: Solicitação de negociação, desconto ou promoção personalizada
+    agent: deals_agent
+    keywords:
+      - desconto
+      - negociar
+      - promoção
+      - oferta especial
+      - upgrade
+      - quais planos
+      - planos disponíveis
+    priority: 4
+    enabled: true
+    domain: deals
+
+  - name: eligibility_query
+    description: Verificação de elegibilidade para troca de plano
+    agent: eligibility_agent
+    keywords:
+      - posso trocar
+      - posso mudar
+      - trocar de plano
+      - mudar de plano
+      - elegibilidade
+    priority: 5
+    enabled: true
+    domain: eligibility
+
+  - name: simulation_request
+    description: Simulação de troca de plano com cálculo de valores
+    agent: simulation_agent
+    keywords:
+      - simular
+      - simulação
+      - vale a pena trocar
+      - quanto vou pagar se
+      - simula
+    priority: 6
+    enabled: true
+    domain: simulation
+
+  - name: fallback
+    description: Intenção não identificada — encaminha para supervisor
+    agent: supervisor_agent
+    keywords: []
+    priority: 99
+    enabled: true
+    domain: general
+
+state_policies: []

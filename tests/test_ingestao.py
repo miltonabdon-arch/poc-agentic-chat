@@ -5,8 +5,8 @@ from pathlib import Path
 from rag_pipeline.chunker import chunk_by_markdown_header
 from rag_pipeline.extractor import extract_from_file
 from rag_pipeline.metadata_enricher import enrich
-from rag_pipeline.vectorizer import get_client, vectorize_and_store
 from rag_pipeline.query_api import query
+from rag_pipeline.vectorizer import get_client, vectorize_and_store
 
 CATALOGO_DIR = Path(__file__).parent.parent / "data" / "catalogo"
 

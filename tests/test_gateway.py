@@ -18,13 +18,13 @@ def test_health_retorna_ok():
 def test_normalize_gera_interaction_com_conversation_id():
     interaction = normalize("Qual a franquia do plano turbo?")
     assert interaction.channel == "mock_sse"
-    assert interaction.message == "Qual a franquia do plano turbo?"
-    assert interaction.conversation_id
+    assert interaction.text == "Qual a franquia do plano turbo?"
+    assert interaction.session_id
 
 
 def test_normalize_reusa_conversation_id_quando_fornecido():
     interaction = normalize("Segunda pergunta", conversation_id="abc-123")
-    assert interaction.conversation_id == "abc-123"
+    assert interaction.session_id == "abc-123"
 
 
 def test_interact_valido_retorna_200():

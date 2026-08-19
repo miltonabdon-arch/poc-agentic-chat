@@ -1,0 +1,117 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "App — Apresentação (gateway :8000)",
+      "type": "debugpy",
+      "request": "launch",
+      "noDebug": true,
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "module": "uvicorn",
+      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "MOCK_SERVICES_URL": "http://localhost:8001",
+        "CHAINLIT_URL": "http://localhost:8080"
+      },
+      "envFile": "${workspaceFolder}/.env",
+      "jinja": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "App (gateway :8000)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "module": "uvicorn",
+      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "MOCK_SERVICES_URL": "http://localhost:8001"
+      },
+      "envFile": "${workspaceFolder}/.env",
+      "jinja": true,
+      "console": "integratedTerminal"
+    },
+
+    {
+      "name": "Chainlit UI (:8080)",
+      "type": "debugpy",
+      "request": "launch",
+      "noDebug": true,
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "module": "chainlit",
+      "args": ["run", "chainlit_app.py", "--port", "8080", "--headless"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "GATEWAY_URL": "http://localhost:8000"
+      },
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Your app is available",
+        "uriFormat": "http://localhost:8080"
+      }
+    },
+    {
+      "name": "Mock Services (:8001)",
+      "type": "debugpy",
+      "request": "launch",
+      "noDebug": true,
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "module": "uvicorn",
+      "args": ["app:app", "--host", "0.0.0.0", "--port", "8001"],
+      "cwd": "${workspaceFolder}/mock_services",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/mock_services"
+      },
+      "jinja": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Demo (run_demo.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "program": "${workspaceFolder}/scripts/run_demo.py",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Ingestão (run_ingestao.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "program": "${workspaceFolder}/scripts/run_ingestao.py",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Cluster Local (app + mock-services)",
+      "configurations": ["Mock Services (:8001)", "App (gateway :8000)"],
+      "stopAll": true
+    },
+    {
+      "name": "Apresentação Completa",
+      "configurations": [
+        "Mock Services (:8001)",
+        "App — Apresentação (gateway :8000)",
+        "Chainlit UI (:8080)"
+      ],
+      "stopAll": true
+    }
+  ]
+}
