@@ -303,6 +303,46 @@ principal.
 
 ---
 
+### B-009: `orchestrator/tracer.py` chama `AgentObserver.emit()` diretamente com `event_type` sem prefixo — Camada 1 (framework) nunca dispara na prática (2026-08-19)
+
+**Discovered:** 2026-08-19, ao ler o código-fonte real de
+`agent_framework.observability.observer.AgentObserver` (não só a SPEC-007)
+para validar a aderência da PoC, comparando com `orchestrator/tracer.py`.
+**Problem:** `trace_interaction()` em `orchestrator/tracer.py:56` chama
+`await _observer.emit(event_type=event_type, payload=dados)` com
+`event_type` igual a `"IC"`, `"NOC"` ou `"GRL"` (sem ponto). O `emit()` real
+do framework decide se um evento é NOC (e portanto se deve chamar
+`emit_noc_event()`, o publisher OTEL/NOC real) assim:
+`is_noc = str(event_type).startswith("NOC.") or metadata.get("noc") is True`.
+Como `"NOC"` não começa com `"NOC."` e a PoC nunca passa
+`metadata={"noc": True}` (isso só acontece dentro de `emit_noc()`, que a
+PoC não usa), `emit_noc_event()` nunca é chamado — o mesmo vale para
+`"IC"`/`"GRL"` via `_apply_control_defaults()`. Diferente de L-001/L-002
+(erros de citação/mapeamento em documentação), este é um **bug funcional no
+código**: a "Camada 1: framework (noop local, real em OCI)" que o próprio
+docstring de `tracer.py` descreve como ativa nunca dispara de fato — só as
+Camadas 2 (log local) e 3 (broadcaster SSE/Chainlit) produzem qualquer
+efeito observável. O framework já resolve isso com os métodos
+especializados `emit_ic(code, ...)`, `emit_noc(code, ...)`,
+`emit_grl(code, ...)`, que a PoC não usa.
+**Impact:** Nenhum caso de teste/demo detectou isso porque a Camada 2 (log
+local) mascara o problema — ela sempre imprime a linha `TRACE|tipo|...`
+independente do que a Camada 1 faz. O critério §6 de
+`CRITERIOS-DE-ACEITE.md` ("observabilidade") passa mesmo com a integração
+real do framework quebrada, porque o critério nunca checou a Camada 1
+isoladamente.
+**Workaround:** nenhum aplicado — a Camada 2 (log local) e Camada 3
+(broadcaster) continuam funcionando normalmente, então a demo não é afetada
+visualmente, só a integração real com o framework fica sem efeito.
+**Resolution:** aberto — trocar as 3 chamadas de
+`_observer.emit(event_type=X, ...)` em `orchestrator/tracer.py` por
+`_observer.emit_ic(code, ...)`, `_observer.emit_noc(code, ...)` e
+`_observer.emit_grl(code, ...)` respectivamente, passando o código do
+evento (ex.: nome do nó) como primeiro argumento em vez de compor
+manualmente o `event_type`.
+
+---
+
 ## Lessons Learned (relevantes para esta PoC)
 
 ### L-001: `docs/ACHADOS-TECNICOS.md` cita SPEC errada para `ChannelMessage` e `EnterpriseRouter` (2026-08-19)
@@ -404,6 +444,21 @@ Achado propagado para o projeto principal em `.specs/project/STATE.md`
 - [x] Qualificar o mapeamento de `AgentRuntimeMixin` → SPEC-002 em
   `docs/ARQUITETURA.md` para deixar explícito que o código não herda a
   classe real (ver L-002) — corrigido em 2026-08-19.
+- [ ] Corrigir B-009: trocar `_observer.emit(event_type=...)` por
+  `emit_ic()`/`emit_noc()`/`emit_grl()` em `orchestrator/tracer.py` — a
+  Camada 1 (framework real) hoje nunca dispara.
+- [ ] Avaliar substituir os módulos reinventados por equivalentes reais do
+  framework (achado de 2026-08-19, aderência total): `agent/guardrails/` →
+  `agent_framework.guardrails.pipeline.GuardrailPipeline` (`RailResult`/
+  `RailAction`, com `PiiMaskRail`/`OutputPiiMaskRail`/`OutOfScopeRail`
+  prontos; menção a concorrente viraria `CustomRails`); `agent/judge.py` →
+  `agent_framework.judges.judge.JudgePipeline` (`GroundednessJudge`/
+  `ResponseQualityJudge` já cobrem 2 dos 3 proxies atuais);
+  `gateway/channel_gateway.py::normalize()` → instanciar
+  `agent_framework.channels.gateway.ChannelGateway` em vez de montar
+  `ChannelMessage` manualmente. Decisão do time: escopo de 2 semanas pode
+  não comportar essa troca — registrar como Deferred Idea se não entrar
+  nesta PoC.
 - [x] **Checkpoint 1 (Dia 5):** atrasado no calendário original, mas
   tecnicamente concluído em 2026-08-17 — ingestão + RAG funcionando (todos
   os módulos de `rag_pipeline/` implementados, sem `NotImplementedError`).
