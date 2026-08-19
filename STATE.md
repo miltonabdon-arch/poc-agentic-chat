@@ -132,7 +132,7 @@ implementação própria em andamento.
 
 ---
 
-### B-007: Branch `feature/orchestrator-agentframework-native` reintroduz `agent_framework` sem coordenação com o AD-009 — CI quebrado (2026-08-17)
+### B-007 (resolvido): Branch `feature/orchestrator-agentframework-native` reintroduz `agent_framework` sem coordenação com o AD-009 — CI quebrado (2026-08-17, resolvido 2026-08-19)
 
 **Discovered:** 2026-08-17, via `gh run list`/`gh run view` no repositório
 GitHub (`miltonabdon-arch/poc-agentic-chat`). Push de hoje (11:10, autor
@@ -325,10 +325,16 @@ dentro do Docker local (VM do Docker Desktop com só ~3.8GB de RAM disponível
 — processo morto por OOM ao carregar `torch`/`transformers`/
 `sentence-transformers` da suíte de testes); essa validação fica para o CI
 real do GitHub Actions, que tem recursos adequados.
-**Resolution:** aberto até o próximo push confirmar o job de Testes verde
-no GitHub Actions (runner com memória suficiente, diferente do Docker
-local). Se passar, falta só decidir se o commit pinado do `agent_framework`
-deve ser atualizado periodicamente (nenhum processo automático disso hoje).
+**Resolution:** ✅ **Resolvido em 2026-08-19 (run `32299946415`, commit
+`30c7923`).** Confirmado no GitHub Actions real: **Lint ✅ · Testes ✅ ·
+Build imagem Docker ✅** — os 3 jobs verdes simultaneamente pela primeira
+vez desde que o problema apareceu (2026-08-17). **B-007 está totalmente
+resolvido** (itens a, b e c). Pendência remanescente, não bloqueante: o
+commit do `agent_framework` está pinado manualmente
+(`AGENT_FRAMEWORK_REF`/`ARG AGENT_FRAMEWORK_REF`) — não há processo
+automático para atualizá-lo; se o upstream ganhar uma feature/correção
+relevante, alguém precisa lembrar de bumpar o hash nos 2 lugares
+(`ci.yml` e `Dockerfile`) manualmente.
 
 ---
 
@@ -574,10 +580,11 @@ generalizar a partir de só os componentes já corretos.
   Dockerfile, em vez de vendoring manual. Corrigido em 2026-08-19; (c) já
   confirmado que a UI Chainlit fica no escopo (decisão do usuário,
   2026-08-19).
-- [ ] Confirmar no GitHub Actions (push após 2026-08-19) que o job de
-  Testes fica verde com a instalação via `git+https` — validado localmente
-  só até `docker build` + import dos módulos (não foi possível rodar
-  `pytest` completo no Docker local por falta de memória, ver B-007).
+- [x] Confirmar no GitHub Actions que o job de Testes fica verde com a
+  instalação via `git+https` — **confirmado 2026-08-19, run `32299946415`
+  (commit `30c7923`): Lint ✅, Testes ✅, Build imagem Docker ✅ — CI 100%
+  verde pela primeira vez desde 2026-08-17.** B-007 está completamente
+  resolvido (itens a, b e c).
 - [x] Corrigir citação de SPEC errada em `docs/ACHADOS-TECNICOS.md`
   (`ChannelMessage`/SPEC-003 e `EnterpriseRouter`/SPEC-004 — ver L-001) —
   corrigido em 2026-08-19.
