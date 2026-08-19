@@ -334,12 +334,19 @@ isoladamente.
 **Workaround:** nenhum aplicado — a Camada 2 (log local) e Camada 3
 (broadcaster) continuam funcionando normalmente, então a demo não é afetada
 visualmente, só a integração real com o framework fica sem efeito.
-**Resolution:** aberto — trocar as 3 chamadas de
-`_observer.emit(event_type=X, ...)` em `orchestrator/tracer.py` por
-`_observer.emit_ic(code, ...)`, `_observer.emit_noc(code, ...)` e
-`_observer.emit_grl(code, ...)` respectivamente, passando o código do
-evento (ex.: nome do nó) como primeiro argumento em vez de compor
-manualmente o `event_type`.
+**Resolution:** ✅ **Corrigido em 2026-08-19.** `orchestrator/tracer.py`
+agora despacha para `_observer.emit_ic()`/`emit_noc()`/`emit_grl()` via um
+dicionário `_EMIT_METHODS` (chave `event_type` → nome do método), em vez de
+chamar `_observer.emit(event_type=...)` diretamente. A Camada 1 do
+framework passa a marcar corretamente `metadata={"ic"|"noc"|"grl": True}`
+e disparar `emit_noc_event()` quando aplicável. Nenhuma mudança na
+assinatura pública de `trace_interaction()` nem no formato de log/broadcaster
+(Camadas 2 e 3) — apenas a chamada interna ao `AgentObserver` foi corrigida.
+Suíte de testes não pôde ser executada neste ambiente (`pytest_bdd`/deps do
+projeto ausentes localmente), mas os testes existentes de observabilidade
+(`tests/step_defs/test_bdd_6.py`) só verificam Camadas 2/3, que não foram
+alteradas — validado apenas por leitura sintática (`ast.parse`) e revisão
+manual.
 
 ---
 
@@ -444,9 +451,9 @@ Achado propagado para o projeto principal em `.specs/project/STATE.md`
 - [x] Qualificar o mapeamento de `AgentRuntimeMixin` → SPEC-002 em
   `docs/ARQUITETURA.md` para deixar explícito que o código não herda a
   classe real (ver L-002) — corrigido em 2026-08-19.
-- [ ] Corrigir B-009: trocar `_observer.emit(event_type=...)` por
+- [x] Corrigir B-009: trocar `_observer.emit(event_type=...)` por
   `emit_ic()`/`emit_noc()`/`emit_grl()` em `orchestrator/tracer.py` — a
-  Camada 1 (framework real) hoje nunca dispara.
+  Camada 1 (framework real) hoje nunca dispara. Corrigido em 2026-08-19.
 - [ ] Avaliar substituir os módulos reinventados por equivalentes reais do
   framework (achado de 2026-08-19, aderência total): `agent/guardrails/` →
   `agent_framework.guardrails.pipeline.GuardrailPipeline` (`RailResult`/

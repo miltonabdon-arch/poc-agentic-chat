@@ -29,6 +29,12 @@ logger = logging.getLogger(__name__)
 # de eventos interno — ambos injetados via DI pelo AgentRuntimeMixin.
 _observer = AgentObserver(analytics=None, event_bus=None)
 
+# emit() só marca um evento como IC/NOC/GRL se o event_type tiver o prefixo
+# com ponto ("IC.", "NOC.", "GRL.") ou se metadata={"ic"|"noc"|"grl": True}
+# for passado explicitamente — usar os métodos especializados garante isso
+# independente do texto de event_type (ver B-009 em STATE.md).
+_EMIT_METHODS = {"IC": "emit_ic", "NOC": "emit_noc", "GRL": "emit_grl"}
+
 
 async def trace_interaction(
     event_type: str,
@@ -53,7 +59,8 @@ async def trace_interaction(
 
     # Camada 1: framework (noop local, real em OCI)
     try:
-        await _observer.emit(event_type=event_type, payload=dados)
+        emit_method = getattr(_observer, _EMIT_METHODS[event_type])
+        await emit_method(event_type, dados)
     except Exception:
         logger.warning("AgentObserver emit falhou (modo noop)", exc_info=True)
 
