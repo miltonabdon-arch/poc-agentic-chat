@@ -407,6 +407,46 @@ sendo um `FastAPI()` implementado do zero "inspirado na interface esperada".
 Achado propagado para o projeto principal em `.specs/project/STATE.md`
 (L-009).
 
+### L-003: Tabela de aderência ponto a ponto contra o `agent_framework` real — 3 módulos reinventados, 1 bug corrigido (B-009), 3 já corretos (2026-08-19)
+
+**Context:** consolidação final da avaliação de aderência desta PoC contra
+o código-fonte real do framework (não só as SPECs), cobrindo todos os
+componentes citados em `docs/ARQUITETURA.md`. Complementa L-001/L-002
+(erros de documentação) e B-009 (bug de código já corrigido) com uma visão
+única de "o que já está certo" vs. "o que ainda reinventa algo que o
+framework já entrega pronto".
+**Tabela de aderência:**
+
+| Componente da PoC | Módulo/classe real do `agent_framework` | Status | Ação |
+|---|---|---|---|
+| `ChannelMessage` (`gateway/models.py`, `channel_gateway.py`, `orchestrator/graph.py`, `tracer.py`) | `agent_framework.channels.base.ChannelMessage` | ✅ Aderente | Nenhuma |
+| Roteamento por intenção (`orchestrator/graph.py` + `routing_config.yaml`) | `agent_framework.routing.enterprise_router.EnterpriseRouter` | ✅ Aderente (schema do YAML bate com `IntentDefinition`/`RouterStatePolicy` reais) | Nenhuma |
+| Emissão de eventos IC/NOC/GRL (`orchestrator/tracer.py`) | `agent_framework.observability.observer.AgentObserver` | ✅ Corrigido (era B-009 — usava `emit()` bruto em vez de `emit_ic/noc/grl()`) | Nenhuma |
+| Normalização de entrada (`gateway/channel_gateway.py::normalize()`) | `agent_framework.channels.gateway.ChannelGateway.normalize(channel, payload) -> ChannelMessage` | ❌ Reinventado — monta `ChannelMessage` manualmente em vez de instanciar a classe real | Trocar por `ChannelGateway().normalize(...)` |
+| Guardrails input/output (`agent/guardrails/`, `agent/models.py`) | `agent_framework.guardrails.pipeline.GuardrailPipeline` (`run_input`/`run_output`, retorno `RailResult`/`RailAction`) | ❌ Reinventado — vocabulário próprio (`GuardrailResult`/`Violation`/`Action`) diverge do real (`RailAction: allow, sanitize, retry, block, handover, observe`) | Migrar para `GuardrailPipeline`; PII já tem `PiiMaskRail`/`OutputPiiMaskRail` prontos; "fora de domínio" tem `OutOfScopeRail` pronto |
+| Menção a concorrente (regra própria da TIM) | `agent_framework.guardrails.custom_rails.CustomRails` (mecanismo de extensão) | ⚠️ Lógica própria correta, mas não plugada no pipeline do framework | Registrar via `CustomRails.add(MeuRail(), stage="input")` dentro do `GuardrailPipeline`, em vez de função solta |
+| Judge offline (`agent/judge.py`) | `agent_framework.judges.judge.JudgePipeline` (`GroundednessJudge`, `ResponseQualityJudge` prontos) | ❌ Reinventado — 2 dos 3 proxies ad-hoc já têm judge determinístico equivalente pronto | Migrar para `JudgePipeline` via `judges.yaml`; manter só `not_found_consistency` como extensão custom, se necessário |
+| Runtime FastAPI (`gateway/app.py`) | `agent_framework.runtime.agent_runtime.AgentRuntimeMixin` | ❌ Não integrado — `FastAPI()` puro, não herda o mixin (ver L-002) | Avaliar se cabe no escopo da PoC — mixin é mais amplo (RAG, MCP tools, cache LLM); pode ser simplificação deliberada aceitável, diferente dos itens acima |
+
+**Impact:** dos 8 componentes mapeados em `docs/ARQUITETURA.md`, 3 estão
+totalmente aderentes, 1 tinha um bug de integração já corrigido (B-009), e
+3 reinventam com vocabulário/contrato próprio algo que o framework já
+entrega pronto (guardrails, judge, channel gateway) — o mesmo padrão do
+gap de nomenclatura já visto em L-008 do projeto principal, mas agora em
+código funcional, não só em diagramas/design. `AgentRuntimeMixin` é o único
+item onde a simplificação pode ser aceitável dado o escopo de 2 semanas
+(mixin cobre muito mais que um wrapper HTTP simples).
+**Resolution:** aberto — decisão do time sobre migrar os 3 itens ❌ antes do
+fim da PoC ou registrar como Deferred Idea (ver Todos abaixo). A migração
+mais simples e isolada é `ChannelGateway.normalize()` (troca direta de uma
+função); guardrails e judge exigem realinhar os contratos de dados
+(`GuardrailResult`/`Violation`/`Action` → `RailResult`/`RailAction`) usados
+em `orchestrator/graph.py` e nos testes.
+**Prevents:** Tratar "a PoC integra o `agent_framework`" como afirmação
+binária — a integração é parcial e desigual entre componentes; qualquer
+nova alegação de aderência deve apontar para esta tabela em vez de
+generalizar a partir de só os componentes já corretos.
+
 ---
 
 ## Deferred Ideas (relevantes para esta PoC)
@@ -454,18 +494,11 @@ Achado propagado para o projeto principal em `.specs/project/STATE.md`
 - [x] Corrigir B-009: trocar `_observer.emit(event_type=...)` por
   `emit_ic()`/`emit_noc()`/`emit_grl()` em `orchestrator/tracer.py` — a
   Camada 1 (framework real) hoje nunca dispara. Corrigido em 2026-08-19.
-- [ ] Avaliar substituir os módulos reinventados por equivalentes reais do
-  framework (achado de 2026-08-19, aderência total): `agent/guardrails/` →
-  `agent_framework.guardrails.pipeline.GuardrailPipeline` (`RailResult`/
-  `RailAction`, com `PiiMaskRail`/`OutputPiiMaskRail`/`OutOfScopeRail`
-  prontos; menção a concorrente viraria `CustomRails`); `agent/judge.py` →
-  `agent_framework.judges.judge.JudgePipeline` (`GroundednessJudge`/
-  `ResponseQualityJudge` já cobrem 2 dos 3 proxies atuais);
-  `gateway/channel_gateway.py::normalize()` → instanciar
-  `agent_framework.channels.gateway.ChannelGateway` em vez de montar
-  `ChannelMessage` manualmente. Decisão do time: escopo de 2 semanas pode
-  não comportar essa troca — registrar como Deferred Idea se não entrar
-  nesta PoC.
+- [ ] Decidir e, se aprovado, migrar os 3 módulos reinventados listados na
+  tabela de aderência do L-003: `gateway/channel_gateway.py::normalize()`
+  → `ChannelGateway.normalize()`; `agent/guardrails/` → `GuardrailPipeline`;
+  `agent/judge.py` → `JudgePipeline`. Se não entrar no escopo de 2 semanas
+  desta PoC, registrar como Deferred Idea explícita.
 - [x] **Checkpoint 1 (Dia 5):** atrasado no calendário original, mas
   tecnicamente concluído em 2026-08-17 — ingestão + RAG funcionando (todos
   os módulos de `rag_pipeline/` implementados, sem `NotImplementedError`).
