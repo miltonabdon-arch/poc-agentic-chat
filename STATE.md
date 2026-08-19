@@ -243,6 +243,33 @@ Docker (que nunca chega a rodar, pois é bloqueado por lint+testes) falharia
 se lint/testes passassem. B-007 **continua aberto**, agora na `main` em vez
 de numa branch.
 
+**Atualização 2026-08-19 (mais tarde) — item (1) resolvido, mas destampou
+um segundo conflito pré-existente:** subir `fastapi` para `0.115.5`
+(dentro da faixa `>=0.115.3,<0.116` exigida por `chainlit`) foi
+insuficiente sozinho — validação em container limpo `python:3.12-slim`
+(mesma versão do CI) revelou um **segundo** `ResolutionImpossible`
+independente, mascarado até então porque o `pip` falhava antes de chegar
+nele: `chainlit` depende de `traceloop-sdk`, que exige
+`opentelemetry-api>=1.28.0`, mas `requirements.txt` fixava
+`opentelemetry-api==1.27.0` (e `opentelemetry-sdk==1.27.0` exigia
+`opentelemetry-api==1.27.0` exato). ✅ **Corrigido**: as 4 libs
+OpenTelemetry (`opentelemetry-api`, `opentelemetry-sdk`,
+`opentelemetry-exporter-otlp-proto-grpc`,
+`opentelemetry-exporter-otlp-proto-common`) subidas juntas de `1.27.0` para
+`1.29.0` (versão que satisfaz `traceloop-sdk` e mantém as 4 libs em
+lockstep, como já eram). Validado com `pip install --dry-run` e depois
+`pip install` real (sem `--dry-run`) em `python:3.12-slim` — instalação
+completa sem erro, `import fastapi, chainlit, opentelemetry.sdk, langgraph,
+chromadb` funciona (`fastapi==0.115.5`, `chainlit==2.6.3` resolvido). Item
+(1) da Resolution original agora está de fato resolvido — restam (2)
+vendoring reprodutível do `agent_framework` e (3) confirmação de escopo da
+UI Chainlit (mantida no escopo por decisão do usuário, 2026-08-19).
+**Lição:** ao corrigir um conflito de dependência, sempre revalidar com
+`pip install --dry-run` (ou instalação real) num ambiente limpo com a
+mesma versão de Python do CI antes de considerar resolvido — corrigir só o
+sintoma reportado no log de erro pode deixar um segundo conflito
+mascarado atrás do primeiro.
+
 ---
 
 ### B-008: PR #4 (`test_new_branch` → `main`) passou a ter conflito de merge (2026-08-17)
@@ -477,14 +504,17 @@ generalizar a partir de só os componentes já corretos.
 - [ ] Corrigir lint pré-existente: `mock_services/agents/cancellation.py:16`
   (`ruff F841`, variável `msg` não usada) — único motivo do CI de `main`
   ainda aparecer vermelho após o merge do PR #4.
-- [ ] Resolver B-007 — PR #6 foi **mesclada em `main` em 2026-08-19 (15:01,
-  commit `3be8bc1`) sem resolução**: CI da `main` segue vermelho pelo mesmo
-  `ResolutionImpossible` (`chainlit>=2.0.0` vs `fastapi==0.115.0`). Falta
-  (a) resolver o conflito de dependência no `requirements.txt`, (b) tornar
-  a instalação do `agent_framework` reprodutível no CI (hoje só funciona
-  localmente via vendoring manual, e nem há `vendor/agent_framework/` no
-  disco para o Dockerfile encontrar), (c) confirmar com o time se a UI
-  Chainlit (`/trace`, `chainlit_app.py`) é escopo aprovado ou scope creep.
+- [x] Resolver item (a) de B-007 — conflito de dependência no
+  `requirements.txt` (`fastapi`×`chainlit` e, depois de corrigido esse,
+  `opentelemetry-api`×`traceloop-sdk` via `chainlit`). Corrigido em
+  2026-08-19: `fastapi` → `0.115.5`, família `opentelemetry-*` → `1.29.0`.
+  Validado com `pip install` real em `python:3.12-slim`.
+- [ ] Resolver itens (b) e (c) de B-007: (b) tornar a instalação do
+  `agent_framework` reprodutível no CI (hoje só funciona localmente via
+  vendoring manual, e nem há `vendor/agent_framework/` no disco para o
+  Dockerfile encontrar); (c) já confirmado que a UI Chainlit fica no
+  escopo (decisão do usuário, 2026-08-19) — falta só validar o CI completo
+  (lint + testes + build Docker) de ponta a ponta após (b) resolvido.
 - [x] Corrigir citação de SPEC errada em `docs/ACHADOS-TECNICOS.md`
   (`ChannelMessage`/SPEC-003 e `EnterpriseRouter`/SPEC-004 — ver L-001) —
   corrigido em 2026-08-19.
