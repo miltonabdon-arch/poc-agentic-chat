@@ -56,6 +56,10 @@ poc-agentic-chat/
 ```bash
 cp .env.example .env
 pip install -r requirements.txt
+# agent_framework não é publicado no PyPI — instalado direto do repositório
+# público, pinado no mesmo commit usado pelo CI (.github/workflows/ci.yml)
+# e pelo Dockerfile. Ver STATE.md (B-007) para o histórico deste ajuste.
+pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@f9c66b4792ac9fd63d7397dbab3bcac310e4d780#subdirectory=libs/agent_framework"
 python scripts/run_ingestao.py         # popula o vector store local (Chroma embutido) com data/catalogo/
 python scripts/run_demo.py             # roda o agente localmente com as perguntas de exemplo
 docker compose up -d                    # opcional: sobe o serviço FastAPI completo (gateway/app.py)

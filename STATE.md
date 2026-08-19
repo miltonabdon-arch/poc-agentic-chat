@@ -283,6 +283,53 @@ job **Lint: ✅ passou** (antes falhava no mesmo `pip install`); job
 (a) está 100% resolvido e isola definitivamente o item (b) como o único
 bloqueador restante do CI.
 
+**Atualização 2026-08-19 (item b resolvido) — instalação do `agent_framework`
+via `git+https` pinado, opção D das 4 avaliadas:** antes de implementar,
+foram avaliadas 4 opções: (A) `pip install git+.../#subdirectory=libs/
+agent_framework` sem pin, (B) índice PyPI interno, (C) vendorizar como
+artefato versionado no repo da PoC, (D) passo dedicado no CI/Dockerfile
+que instala direto do GitHub, pinado num commit. B foi descartada (exige
+infra fora do escopo de 2 semanas); C foi descartada (versionaria código
+de terceiros no repo da PoC, questão de proveniência/licenciamento); A
+tinha 2 problemas próprios: `libs/agent_framework/pyproject.toml` real
+exige `langgraph>=0.2.60`, mas a PoC fixa `langgraph==0.2.34` (conflito
+novo), e instalar o pacote completo (`pip install` sem `--no-deps`) puxaria
+`oracledb`, `oci`, `pymongo`, `redis`, `motor`, `google-cloud-pubsub`,
+`mcp`, `langfuse` — todas as 29 dependências do `pyproject.toml`, mesmo a
+PoC usando só 3 submódulos (`channels`, `routing`, `observability`).
+Confirmado por leitura do código-fonte real (`channels/base.py`,
+`routing/enterprise_router.py`, `observability/observer.py`, e toda a
+cadeia de imports que eles tocam — `analytics/*`, `routing/continuity.py`,
+`routing/config_loader.py`, `cache/cache.py`) que nenhum desses módulos
+importa as dependências pesadas no nível de topo (tudo lazy-loaded dentro
+de métodos/`__init__`) — logo `pip install --no-deps` é seguro e evita
+tanto o conflito de `langgraph` quanto o peso das dependências.
+**Implementado (opção D):** `.github/workflows/ci.yml` (jobs `lint` e
+`test`) e `Dockerfile` agora rodam
+`pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@<commit>#subdirectory=libs/agent_framework"`
+logo após `pip install -r requirements.txt`, pinado no commit
+`f9c66b4792ac9fd63d7397dbab3bcac310e4d780` (HEAD do upstream em
+2026-08-19) via `env.AGENT_FRAMEWORK_REF` no CI e `ARG
+AGENT_FRAMEWORK_REF` no Dockerfile — mesmo valor nos dois lugares, fácil de
+atualizar junto no futuro. `Dockerfile` ganhou `apt-get install git` (necessário
+para o `pip install git+https`). `vendor/` removido do `.gitignore` (não é
+mais usado) e `README.md` (Quick start) atualizado com o novo comando de
+instalação.
+**Validado localmente antes do commit:** (1) `docker build` completo da
+imagem passou sem erro, incluindo o passo do `agent_framework`; (2) dentro
+da imagem final, `from agent_framework.channels.base import ChannelMessage`,
+`EnterpriseRouter`, `AgentObserver`, e os módulos reais da PoC
+(`gateway/channel_gateway.py`, `orchestrator/tracer.py`, já com a correção
+do B-009) importam sem erro. **Não foi possível** validar `pytest` completo
+dentro do Docker local (VM do Docker Desktop com só ~3.8GB de RAM disponível
+— processo morto por OOM ao carregar `torch`/`transformers`/
+`sentence-transformers` da suíte de testes); essa validação fica para o CI
+real do GitHub Actions, que tem recursos adequados.
+**Resolution:** aberto até o próximo push confirmar o job de Testes verde
+no GitHub Actions (runner com memória suficiente, diferente do Docker
+local). Se passar, falta só decidir se o commit pinado do `agent_framework`
+deve ser atualizado periodicamente (nenhum processo automático disso hoje).
+
 ---
 
 ### B-008: PR #4 (`test_new_branch` → `main`) passou a ter conflito de merge (2026-08-17)
@@ -522,12 +569,15 @@ generalizar a partir de só os componentes já corretos.
   `opentelemetry-api`×`traceloop-sdk` via `chainlit`). Corrigido em
   2026-08-19: `fastapi` → `0.115.5`, família `opentelemetry-*` → `1.29.0`.
   Validado com `pip install` real em `python:3.12-slim`.
-- [ ] Resolver itens (b) e (c) de B-007: (b) tornar a instalação do
-  `agent_framework` reprodutível no CI (hoje só funciona localmente via
-  vendoring manual, e nem há `vendor/agent_framework/` no disco para o
-  Dockerfile encontrar); (c) já confirmado que a UI Chainlit fica no
-  escopo (decisão do usuário, 2026-08-19) — falta só validar o CI completo
-  (lint + testes + build Docker) de ponta a ponta após (b) resolvido.
+- [x] Resolver item (b) de B-007 — `agent_framework` agora instalado via
+  `pip install --no-deps git+https://...@<commit>` (pinado), no CI e no
+  Dockerfile, em vez de vendoring manual. Corrigido em 2026-08-19; (c) já
+  confirmado que a UI Chainlit fica no escopo (decisão do usuário,
+  2026-08-19).
+- [ ] Confirmar no GitHub Actions (push após 2026-08-19) que o job de
+  Testes fica verde com a instalação via `git+https` — validado localmente
+  só até `docker build` + import dos módulos (não foi possível rodar
+  `pytest` completo no Docker local por falta de memória, ver B-007).
 - [x] Corrigir citação de SPEC errada em `docs/ACHADOS-TECNICOS.md`
   (`ChannelMessage`/SPEC-003 e `EnterpriseRouter`/SPEC-004 — ver L-001) —
   corrigido em 2026-08-19.
