@@ -270,6 +270,19 @@ mesma versão de Python do CI antes de considerar resolvido — corrigir só o
 sintoma reportado no log de erro pode deixar um segundo conflito
 mascarado atrás do primeiro.
 
+**Atualização 2026-08-19 (confirmação via CI real, run `32295668099`):**
+push do commit `3a3a6f4` confirma no GitHub Actions exatamente o previsto —
+job **Lint: ✅ passou** (antes falhava no mesmo `pip install`); job
+**Testes: ainda falha**, mas agora por um motivo diferente e já esperado —
+`ModuleNotFoundError: No module named 'agent_framework'` em
+`tests/test_gateway.py` e `tests/test_integracao.py` (via
+`gateway/channel_gateway.py:8`), exatamente o item (b) já registrado
+(vendoring do `agent_framework` não é reproduzível no CI — não existe
+`vendor/agent_framework/` no repositório nem passo de CI que o gere). Job
+**Build Docker: skipped** (depende de Lint+Testes). Confirma que o item
+(a) está 100% resolvido e isola definitivamente o item (b) como o único
+bloqueador restante do CI.
+
 ---
 
 ### B-008: PR #4 (`test_new_branch` → `main`) passou a ter conflito de merge (2026-08-17)
