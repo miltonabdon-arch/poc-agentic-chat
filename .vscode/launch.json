@@ -5,10 +5,9 @@
       "name": "App — Apresentação (gateway :8000)",
       "type": "debugpy",
       "request": "launch",
-      "noDebug": true,
       "python": "${workspaceFolder}/venv/Scripts/python.exe",
       "module": "uvicorn",
-      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000"],
+      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -17,7 +16,9 @@
       },
       "envFile": "${workspaceFolder}/.env",
       "jinja": true,
-      "console": "integratedTerminal"
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false
     },
     {
       "name": "App (gateway :8000)",
@@ -25,7 +26,7 @@
       "request": "launch",
       "python": "${workspaceFolder}/venv/Scripts/python.exe",
       "module": "uvicorn",
-      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "args": ["gateway.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "info"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -33,14 +34,15 @@
       },
       "envFile": "${workspaceFolder}/.env",
       "jinja": true,
-      "console": "integratedTerminal"
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false
     },
 
     {
       "name": "Chainlit UI (:8080)",
       "type": "debugpy",
       "request": "launch",
-      "noDebug": true,
       "python": "${workspaceFolder}/venv/Scripts/python.exe",
       "module": "chainlit",
       "args": ["run", "chainlit_app.py", "--port", "8080", "--headless"],
@@ -49,7 +51,9 @@
         "PYTHONPATH": "${workspaceFolder}",
         "GATEWAY_URL": "http://localhost:8000"
       },
-      "console": "integratedTerminal",
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false,
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "Your app is available",
@@ -60,7 +64,6 @@
       "name": "Mock Services (:8001)",
       "type": "debugpy",
       "request": "launch",
-      "noDebug": true,
       "python": "${workspaceFolder}/venv/Scripts/python.exe",
       "module": "uvicorn",
       "args": ["app:app", "--host", "0.0.0.0", "--port", "8001"],
@@ -69,7 +72,9 @@
         "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/mock_services"
       },
       "jinja": true,
-      "console": "integratedTerminal"
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false,      
     },
     {
       "name": "Demo (run_demo.py)",
@@ -82,7 +87,9 @@
         "PYTHONPATH": "${workspaceFolder}"
       },
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal"
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false,
     },
     {
       "name": "Ingestão (run_ingestao.py)",
@@ -95,13 +102,23 @@
         "PYTHONPATH": "${workspaceFolder}"
       },
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal"
+      "console": "externalTerminal",
+      "justMyCode": false,
+      "subProcess": false,
     }
   ],
   "compounds": [
     {
       "name": "Cluster Local (app + mock-services)",
       "configurations": ["Mock Services (:8001)", "App (gateway :8000)"],
+      "stopAll": true
+    },
+    {
+      "name": "App — Gateway + Chainlit",
+      "configurations": [
+        "App — Apresentação (gateway :8000)",
+        "Chainlit UI (:8080)"
+      ],
       "stopAll": true
     },
     {

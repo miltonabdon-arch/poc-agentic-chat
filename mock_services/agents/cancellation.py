@@ -16,6 +16,6 @@ def interact(body: dict):
     oferta = random.choice(CONTRA_OFERTAS)
     return {
         "conversation_id": body.get("conversation_id"),
-        "response": f"[Agente Retenção] Entendo que deseja cancelar. {oferta}",
+        "response": f"Entendo que deseja cancelar. {oferta}",
         "handoff_resolvido": True,
     }

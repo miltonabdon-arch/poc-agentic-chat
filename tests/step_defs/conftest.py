@@ -176,7 +176,7 @@ def entao_resposta_nao_contem(interacao, nao_esperado):
 
 @then("a resposta indica que a informação não foi encontrada")
 def entao_nao_encontrado(interacao):
-    """§4: sem evidência RAG, o agente usa not_found_response() sem inventar.
+    """§4: sem evidência RAG, o agente usa build_not_found_prompt() + LLM sem inventar.
 
     Fragmento vem de agent/prompt.py — contrato de Gustavo (test_new_branch).
     """

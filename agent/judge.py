@@ -46,6 +46,8 @@ def _check_empty_response(interaction: dict) -> str | None:
 
 
 def _check_groundedness(interaction: dict) -> str | None:
+    if not interaction.get("expects_source", True):
+        return None
     if interaction.get("response") and not interaction.get("source_document_id"):
         return "response sem fonte — possível alucinação"
     return None

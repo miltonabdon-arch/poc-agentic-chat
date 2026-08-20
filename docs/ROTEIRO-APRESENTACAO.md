@@ -1,6 +1,6 @@
 # Roteiro de Apresentação — Agente de Catálogo TIM (PoC)
 
-**Data:** 2026-08-18 | **Apresentador:** Igor Scaglia (AI Developer Sr, CI&T)
+**Data:** 2026-08-19 | **Apresentador:** Igor Scaglia (AI Developer Sr, CI&T)
 **Duração estimada:** 25–30 minutos
 
 ---
@@ -14,7 +14,7 @@ A narrativa percorre o arco completo de uma PoC colaborativa:
 > **Cada papel entrega sua fatia** (paralelo) →
 > **Conflitos encontrados e resolvidos** (integração) →
 > **Grafo montado** (AI Dev Sr) →
-> **Demo contra os critérios** →
+> **Demo contra os critérios** (com observabilidade ao vivo) →
 > **Achados e o que fica para o projeto real**
 
 O ponto de chegada não é "olha o que eu fiz" — é "olha o que o framework
@@ -29,10 +29,10 @@ permite que o time construa, com papéis separados, em 2 semanas".
 | 1 | Hipótese: por que essa PoC existe | 2 min |
 | 2 | Contratos: a cola definida no kickoff | 3 min |
 | 3 | O que cada colega entregou e como chegou até mim | 4 min |
-| 4 | O que eu recebi e o que faltava: montar o grafo | 3 min |
+| 4 | O que eu recebi e o que faltava: montar o grafo + observabilidade | 4 min |
 | 5 | **DEMO AO VIVO** — 7 casos vs. os critérios de aceite | 8 min |
 | 6 | BDD: como os critérios viraram testes executáveis | 2 min |
-| 7 | Achados técnicos: o que ficou para o projeto real | 3 min |
+| 7 | Achados técnicos: o que fica para o projeto real | 3 min |
 | 8 | Perguntas | livre |
 
 ---
@@ -46,45 +46,80 @@ Executar nesta ordem — não durante a apresentação.
 VS Code → Run & Debug → **"Ingestão (run_ingestao.py)"** → F5.
 Aguardar: `Ingestão concluída: 8 documentos, 32 chunks`.
 
-**2. Subir o cluster** (caminho primário — VS Code)
+**2. Subir infraestrutura** (mock-services + Langfuse + DB)
 
-VS Code → Run & Debug → **"Cluster Local (app + mock-services)"** → F5.
-Aguardar `Application startup complete.` nos dois terminais integrados.
+```powershell
+docker compose --profile infra up -d
+```
 
-> Alternativa (se VS Code indisponível): `docker compose up -d` via WSL.
+Aguardar todos os containers `healthy`:
 
-**3. Verificar saúde**
+```powershell
+docker compose ps
+# mock-services   healthy
+# langfuse         healthy
+# langfuse-db      healthy
+```
+
+**3. Subir a aplicação (gateway)**
+
+Via VS Code — Run & Debug → **"Apresentação Completa"** → F5 (3 terminais).
+OU via terminal:
+
+```powershell
+docker compose --profile app up -d
+```
+
+Aguardar `Application startup complete.` nos terminais de gateway e Chainlit.
+
+> **Alternativa rápida (sem Docker):** usar os scripts PowerShell:
+> `scripts/start_mock.ps1` | `scripts/start_gateway.ps1` | `scripts/start_chainlit.ps1`
+
+**4. Verificar saúde**
 
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8000/health"
 # Retorno esperado: {"status":"ok"}
 ```
 
-**4. Abrir as abas do browser (deixar prontas antes da sala)**
+**5. Abrir as abas do browser (deixar prontas antes da sala)**
 
 | Aba | URL | Para quê |
 |-----|-----|----------|
-| Tab 1 | `http://localhost:8000/trace-ui` | Diagrama de arquitetura (Blocos 2–4) |
-| Tab 2 | `http://localhost:8000/chainlit` | Chat + TaskList ao vivo (Bloco 5) |
+| Tab 1 | `http://localhost:8080` | Chainlit — Chat + Steps ao vivo (Bloco 5) |
+| Tab 2 | `http://localhost:3000` | Langfuse — dashboard de traces persistidos |
 
-**5. Smoke test** (absorver warm-up E confirmar RAG)
+> Langfuse: login padrão `admin@langfuse.com` / `password` (configurado no `.env`).
+> Se LANGFUSE_PUBLIC_KEY não estiver no `.env`, Langfuse fica desabilitado — o
+> trace local e SSE continuam funcionando normalmente.
 
-Na **Tab 2 (Chainlit)**, digitar no chat:
+**6. Smoke test** (absorver warm-up E confirmar RAG)
+
+Na **Tab 1 (Chainlit)**, digitar no chat:
 ```
 Quais franquias de dados o Plano Turbo 40GB inclui?
 ```
-Aguardar o TaskList completar todos os nós (✅ ✅ ✅ ✅ ✅) e verificar se
-a resposta menciona "40GB" — não a mensagem de fallback.
+Observar os steps aparecerem em tempo real com ícones por tipo de evento:
+- 🗺️ GRAPH — topologia compilada e estado inicial do grafo
+- ✅ NOC — roteamento via EnterpriseRouter (palavras-chave, sem LLM)
+- 📊 STATE — δ do GraphState após cada nó
+- ⚙️ FLOW — sub-componente entrou/saiu (rag.query, llm.complete, mock.*)
+- 🔍 RAG — resultado da busca no catálogo
+- 🤖 LLM — chamada ao modelo de linguagem
+- 🎭 MOCK — chamada HTTP a mock_services
+- ⚖️ JUDGE — avaliação de qualidade offline
+- 🏁 ORCH — resultado executivo do pipeline
+- 🛡️ GRL — guardrail ativado (só aparece quando bloqueado)
+
+Aguardar os steps fecharem e verificar se a resposta menciona "40GB".
 
 Se falhar: verificar logs no terminal integrado do VS Code antes de entrar na sala.
 
 > **Atenção — warm-up do modelo:** a primeira requisição após subir o cluster
-> demora 30–60s porque o `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`)
-> e o CrossEncoder (`BAAI/bge-reranker-v2-m3`) carregam os pesos em memória na
-> primeira chamada. As chamadas seguintes são imediatas — o modelo fica em memória
-> enquanto o processo estiver de pé. **O smoke test (passo 5 acima) serve exatamente
-> para absorver esse warm-up antes de entrar na sala.** Nunca faça a primeira
-> requisição ao vivo na frente da audiência.
+> demora 30–60s porque `paraphrase-multilingual-MiniLM-L12-v2` e
+> `BAAI/bge-reranker-v2-m3` carregam pesos em memória na primeira chamada.
+> **O smoke test (passo 6 acima) serve exatamente para absorver esse warm-up.**
+> Nunca faça a primeira requisição ao vivo na frente da audiência.
 
 ---
 
@@ -155,10 +190,10 @@ Mostrar os 3 contratos que o time acordou antes de escrever qualquer código:
 
 - Branch: `test_new_branch` (cherry-pick manual — PR não foi aberto a tempo)
 - Entregáveis: `prompt.py`, `guardrails/input_guardrail.py`, `guardrails/output_guardrail.py`, `judge.py`
-- O que veio pronto: `build_prompt(question, query_result)`, `not_found_response()`, `check_input(text)`, `check_output(text)`
+- O que veio pronto: `build_prompt(question, query_result)`, `not_found_response()`, `build_crm_prompt(question, intent, api_data)`, `build_supervisor_prompt(question)`, `check_input(text)`, `check_output(text)`
 - Ponto crítico: `build_prompt()` retorna `None` quando `found=False` — isso obrigou o grafo a nunca chamar o LLM para planos inexistentes
 
-**Mostrar (30 segundos):** `agent/prompt.py` L126–127 — o `if not query_result.found: return None`.
+**Mostrar (30 segundos):** `agent/prompt.py` — o `if not query_result.found: return None`.
 
 ### Kirllen (Backend/Integração) — gateway/ + mock_services/
 
@@ -166,20 +201,24 @@ Mostrar os 3 contratos que o time acordou antes de escrever qualquer código:
 - Entregáveis: `channel_gateway.py`, `app.py`, `mock_services/` completo (CRM, cancellation, deals, plans)
 - O que veio pronto: `normalize(raw_message) → ChannelMessage` e o runtime FastAPI
 - Valor do mock_services: os handoffs de cancelamento e deals funcionam localmente sem nenhuma integração real
+- **Novo:** middleware de logging em `mock_services/app.py` — cada requisição recebida emite `[MOCK] REQUEST` e `[MOCK] RESPONSE` com latência e conversation_id
 
-**Mostrar (30 segundos):** `gateway/channel_gateway.py` L11–19 — a função `normalize()` que cria o `ChannelMessage`.
+**Mostrar (30 segundos):** `gateway/channel_gateway.py` — a função `normalize()` que cria o `ChannelMessage`.
 
 ---
 
-## Bloco 4 — O que eu recebi e o que faltava: montar o grafo (3 min)
+## Bloco 4 — O que eu recebi e o que faltava: montar o grafo + observabilidade (4 min)
 
 **Fala sugerida:**
 > "Eu recebi três branches, três contratos implementados, e o `agent_framework`
 > com `ChannelMessage`, `EnterpriseRouter` e `AgentObserver`.
 > O framework não monta o grafo — essa é a responsabilidade explícita do AI Dev Sr.
-> Foi o principal aprendizado prático desta PoC."
+> E para a demo funcionar ao vivo, precisei adicionar uma camada de observabilidade
+> que tornasse o 'invisível' visível — em tempo real."
 
-**Mostrar:** `orchestrator/graph.py` L1–12 — o docstring com a tabela de atribuição:
+### O grafo (build_graph)
+
+**Mostrar:** `orchestrator/graph.py` — o docstring com a tabela de atribuição:
 
 ```
 Ana Carolina → QueryResult      (rag_pipeline/query_api.py)
@@ -188,15 +227,81 @@ Kirllen      → ChannelMessage   (gateway/channel_gateway.py, branch backend)
 Igor         → build_graph(), run_interaction()
 ```
 
-**Mostrar:** `orchestrator/graph.py` L191–231 — `build_graph()`:
+**Mostrar:** `orchestrator/graph.py` função `build_graph()`:
 - `g.add_node("input_guardrails", node_input_guardrails)` — código do Gustavo, nó do grafo de Igor
 - `g.add_conditional_edges("input_guardrails", _after_guardrails)` — a lógica block/allow
 - `g.set_entry_point("input_guardrails")` — sempre começa pelo guardrail, nunca pelo agente
 
-**Mostrar:** `orchestrator/graph.py` L272–316 — `_run_catalog()`:
-> "Aqui o grafo integra as três fatias: QueryResult de Ana, build_prompt de Gustavo,
-> complete() via Flow CI&T. Cada contrato chegou de uma branch diferente;
-> este nó é onde eles se encontram."
+**Estratégia por nó — nem todos chamam o LLM:**
+
+| Nó | Estratégia |
+|----|-----------|
+| `input_guardrails` | Regex + regras — sem LLM |
+| `routing_decision` | Keyword matching (`EnterpriseRouter`) — sem LLM |
+| `catalog_agent` | RAG hit → `build_prompt` + LLM; RAG miss → `build_not_found_prompt` + LLM |
+| `billing` | CRM mock + `build_crm_prompt` + LLM |
+| `eligibility` | CRM mock + `build_crm_prompt` + LLM |
+| `simulation` | CRM mock + `build_crm_prompt` + LLM |
+| `supervisor` | `build_supervisor_prompt` + LLM (intenções fora dos domínios) |
+| `handoff_cancellation` | HTTP → `mock_services` — **sem LLM** (agente externo responde) |
+| `handoff_deals` | HTTP → `mock_services` — **sem LLM** (agente externo responde) |
+| `output_guardrails` | Regex + regras — sem LLM |
+| `judge` | `judge_batch()` + LLM — avaliação offline, não chega ao usuário |
+
+**Fala:** *"Os dois handoffs são os únicos nós de domínio sem LLM — eles existem para passar o controle a outro agente. No sistema real, esse agente externo teria seu próprio LLM e seu próprio pipeline."*
+
+### A observabilidade em 4 camadas
+
+**Fala sugerida:**
+> "O `AgentObserver` do framework existe, mas localmente ele não imprime nada —
+> ele espera instâncias reais de OCI ou Langfuse. Para a demo funcionar, adicionei
+> 3 camadas locais que se encaixam sem substituir a camada do framework."
+
+**Mostrar:** `orchestrator/tracer.py` — o `NODE_OWNERS` dict:
+
+```python
+NODE_OWNERS = {
+    "node.input_guardrails": "IGOR",   "node.catalog_agent": "IGOR",
+    "rag.query": "ANA",                "rag.vectorizer": "ANA",
+    "llm.complete": "GUSTAVO",         "guardrail.input": "GUSTAVO",
+    "mock.crm": "KIRLLEN",             "mock.cancellation": "KIRLLEN",
+    ...
+}
+```
+
+**Fala:** *"Todo evento sabe quem é o dono — aparece nos logs estruturados e no Langfuse."*
+
+**Mostrar:** `orchestrator/tracer.py` — função `trace_flow()`:
+
+```python
+async def trace_flow(subtype, component, channel_message, payload=None):
+    # emite FLOW ENTER / FLOW EXIT para log + broadcaster SSE
+```
+
+**Camadas de observabilidade:**
+
+| Camada | Onde aparece | Quando |
+|--------|-------------|--------|
+| 1. AgentObserver + Langfuse | `http://localhost:3000` | IC, NOC, GRL — framework events |
+| 2. Log estruturado local | Terminal / stdout | `TRACE\|FLOW\|component=...\|owner=...` |
+| 3. SSE broadcaster | Chainlit steps ao vivo | FLOW ENTER/EXIT em tempo real |
+| 4. Langfuse self-hosted | `http://localhost:3000` | Traces persistidos com latência |
+
+**Os 11 tipos de evento:**
+
+| Sigla | Significado | Dono |
+|-------|------------|------|
+| `IC` | Interaction Created | Framework |
+| `NOC` | Node Completed | Framework |
+| `GRL` | GuaRaiL fired | Framework |
+| `FLOW` | ENTER/EXIT por componente | trace_flow() |
+| `LLM` | Chamada ao modelo | _call_llm_and_trace() |
+| `RAG` | Busca no Chroma | node_catalog_agent |
+| `MOCK` | HTTP call ao mock_services | helpers de handoff |
+| `JUDGE` | Avaliação de qualidade offline | judge_batch() |
+| `GRAPH` | Topologia compilada + estado inicial | run_interaction() |
+| `ORCH` | Resultado executivo do pipeline | run_interaction() |
+| `STATE` | δ do GraphState após cada nó | run_interaction() |
 
 **Conflito que precisou resolver (AD-008 → AD-009 → AD-010):**
 > "A primeira tentativa de integrar o `agent_framework` causou conflitos
@@ -208,12 +313,13 @@ Igor         → build_graph(), run_interaction()
 
 ## Bloco 5 — DEMO AO VIVO (8 min)
 
-**Tela principal:** Tab 2 — `http://localhost:8000/chainlit`
-**Tela de apoio (abrir quando quiser mostrar arquitetura):** Tab 1 — `http://localhost:8000/trace-ui`
+**Tela principal:** Tab 1 — `http://localhost:8080` (Chainlit)
 
-> O painel "Tasks" à direita do Chainlit é o "debaixo do capô" da PoC:
-> mostra em tempo real qual nó do grafo está em execução, quem é o responsável,
-> e ao final permite expandir "Used LangGraph" para ver o input/output de cada nó.
+> Os steps expansíveis à esquerda do Chainlit são o "debaixo do capô" da PoC:
+> mostram em tempo real qual componente está em execução, com ícone por tipo
+> de evento (🗺️ GRAPH · ✅ NOC · 📊 STATE · ⚙️ FLOW · 🔍 RAG · 🤖 LLM · 🎭 MOCK · ⚖️ JUDGE · 🏁 ORCH · 🛡️ GRL) e o
+> input/output de cada etapa. O painel Langfuse (Tab 2) mostra os traces
+> persistidos com latência acumulada.
 
 ### Casos e narrativa de cada um:
 
@@ -223,11 +329,11 @@ Digitar no Chainlit:
 ```
 Quais franquias de dados o Plano Turbo 40GB inclui?
 ```
-- Enquanto o pipeline roda: mostrar o TaskList acendendo nó a nó
-- TaskList esperado: `catalog_agent` aparece dinamicamente entre `routing_decision` e `output_guardrails`
+- Enquanto o pipeline roda: observar steps aparecendo com ícones por tipo
+- Steps esperados em ordem: 🗺️ `GRAPH` → 📊 `STATE` → `✅ rota → catalog_agent · intenção: catalog` → 📊 `STATE` → ⚙️ `rag.query` → 🔍 `RAG ✓ turbo-40gb` → ⚙️ `llm.complete` → 🤖 `LLM (gpt-4o-mini)` → 📊 `STATE` → 🏁 `ORCH`
 - Resposta esperada: menciona "40GB" e "NetFlow"
-- Após a resposta: clicar em "Used LangGraph" → expandir `catalog_agent` → mostrar o `QueryResult` com `chunk_id=turbo-40gb#Franquia`
-- Fala: *"O RAG localizou o chunk de Ana. O prompt de Gustavo montou o contexto. O LLM do Flow CI&T respondeu. Tudo passando pelos contratos que acordamos no kickoff."*
+- Após a resposta: expandir step `🔍 RAG ✓ turbo-40gb` → mostrar chunk_id e confidence_score
+- Fala: *"O RAG localizou o chunk. O prompt montou o contexto. O LLM respondeu. O grafo coordenou tudo — cada step mostra qual tipo de operação está em andamento."*
 
 **[CASO 2/7] §3 — RAG: Fidelidade do Família Prime**
 
@@ -236,7 +342,7 @@ Qual o período de fidelidade do TIM Família Prime?
 ```
 - Mesmo fluxo — valida que não é caso especial
 - Resposta esperada: menciona "24 meses" e "bônus"
-- Fala: *"Segundo plano, mesma pipeline. O Chroma discrimina os chunks."*
+- Fala: *"Segundo plano, mesma pipeline. O Chroma discrimina os chunks — o CrossEncoder de Ana garante o re-ranking correto."*
 
 **[CASO 3/7] §3 — RAG: Multa do Controle 20GB**
 
@@ -251,38 +357,50 @@ Qual o valor da multa de cancelamento do Controle 20GB?
 ```
 Quais são os benefícios do plano TIM Ultra Infinity Premium?
 ```
-- TaskList: `catalog_agent` aparece e conclui
+- Steps esperados: ⚙️ `rag.query` → 🔍 `RAG ✗ não encontrado` → ⚙️ `llm.complete` → 🤖 `LLM` → 🏁 `ORCH`
 - Resposta esperada: "Não encontrei essa informação no catálogo..."
-- Após resposta: expandir step `catalog_agent` → mostrar `found=False` no QueryResult
-- Fala: *"O RAG retornou `found=False`. O grafo nunca chamou o LLM. `build_prompt()` de Gustavo retornou `None` — decisão de design que evita alucinação."*
+- Após resposta: expandir step `🔍 RAG ✗ não encontrado` → mostrar `found=False`
+- Fala: *"O RAG retornou `found=False`. `build_prompt()` retornou `None` — o grafo usa `build_not_found_prompt()` em vez disso, que instrui o LLM a responder com a mensagem padrão de não encontrado. Tokens mínimos, sem alucinação."*
 
 **[CASO 5/7] §5a — PII masking: CPF**
 
 ```
 Meu CPF é 123.456.789-00, qual o melhor plano para mim?
 ```
-- TaskList: `input_guardrails` conclui rápido (sem LLM)
-- Resposta esperada: CPF não aparece na resposta
-- Após resposta: expandir step `input_guardrails` → mostrar `violation=pii`
-- Fala: *"O guardrail de Gustavo rodou antes de qualquer routing. O CPF nunca chegou ao LLM — está no `sanitized_input` mascarado."*
+- Steps esperados: 🗺️ `GRAPH` → 🛡️ `GRL: input_guardrails [BLOQUEADO]` — sem steps seguintes
+- Resposta esperada: mensagem de bloqueio; CPF não aparece
+- Após resposta: expandir step `🛡️ GRL: input_guardrails [BLOQUEADO]` → mostrar `violation=pii`, `blocked=True`
+- Fala: *"O guardrail de Gustavo rodou antes de qualquer routing. O CPF nunca chegou ao LLM — está mascarado no `sanitized_input`. A resposta de bloqueio veio do grafo de Igor, não do LLM."*
 
-**[CASO 6/7] §5b — Output guardrail: concorrente**
+**[CASO 6/7] §5b — Output guardrail: camada de proteção sempre ativa**
 
 ```
-A Vivo é melhor que a TIM nos planos de internet?
+Quais são os benefícios do Plano Turbo 40GB?
 ```
-- TaskList: `output_guardrails` conclui (verificação de saída)
-- Resposta esperada: "outra operadora" onde estaria "Vivo"
-- Fala: *"O LLM pode mencionar um concorrente. O guardrail de output mascara antes de devolver ao canal — Gustavo implementou, o grafo aplica automaticamente."*
+- Steps esperados: fluxo RAG completo (mesmo do CASO 1) — o output guardrail roda internamente mas não gera step na UI quando não há violação
+- Expandir step `🏁 ORCH` → confirmar no log `output_guardrail=ok`
+- Fala: *"O output guardrail roda em TODA resposta — sem exceção. Aqui o LLM foi bem-comportado: prosa limpa, sem concorrentes, sem vazamento de prompt. Se o LLM tivesse citado a Vivo ou vazado marcadores internos como [CONTEXTO], o guardrail teria bloqueado antes de chegar ao canal — e o step 🛡️ GRL teria aparecido na UI."*
+- **Prova ao vivo (terminal):** mostrar que o mecanismo funciona:
+```powershell
+cd poc-agentic-chat
+.\venv\Scripts\python.exe -c "
+from agent.guardrails.output_guardrail import check_output
+r = check_output('O **Turbo 40GB** é melhor que a Vivo com certeza!')
+print(r.violation, '|', r.text)
+"
+# Saída esperada: Violation.COMPETITOR_MENTION | O **Turbo 40GB** é melhor que a outra operadora com certeza!
+```
+- Fala: *"Dois mecanismos de proteção: sistema instrui o LLM a não mencionar concorrentes; guardrail garante mesmo que o LLM ignore a instrução."*
 
 **[CASO 7/7] §5b — Handoff: cancelamento**
 
 ```
 Quero cancelar meu plano TIM
 ```
-- TaskList: `handoff_cancellation` aparece (não `catalog_agent`)
-- Resposta esperada: "[Agente Retenção] Entendo que deseja cancelar..."
-- Fala: *"O EnterpriseRouter do framework detectou `cancellation_request`. O grafo fez handoff para o mock do Agente de Retenção de Kirllen — sem alterar uma linha do código de routing, só o YAML."*
+- Steps esperados: `✅ rota → handoff_cancellation · intenção: cancellation_request` → 🎭 `MOCK:cancellation [200]` → 🏁 `ORCH`
+- Resposta esperada: "Entendo que deseja cancelar..."
+- Após resposta: expandir step `🎭 MOCK:cancellation [200]` → mostrar http_status=200, latencia_ms
+- Fala: *"O roteamento detectou `cancellation_request`. O grafo fez handoff para o mock de Kirllen — o step 🎭 mostra a chamada HTTP ao mock_services com status e latência."*
 
 ---
 
@@ -311,7 +429,7 @@ Scenario: Franquia do Turbo 40GB respondida sem LLM externo
 
 ```powershell
 # Mostrar ao vivo:
-.\venv\Scripts\pytest -m unit -v --tb=short 2>&1 | Select-String "PASSED|FAILED"
+.\venv\Scripts\pytest -m "not integration" -v --tb=short 2>&1 | Select-String "PASSED|FAILED"
 ```
 
 ---
@@ -320,7 +438,7 @@ Scenario: Franquia do Turbo 40GB respondida sem LLM externo
 
 **Abrir:** `docs/ACHADOS-TECNICOS.md`
 
-**Três achados principais a destacar:**
+**Quatro achados principais a destacar:**
 
 1. **O grafo é sempre do desenvolvedor (o mais importante):**
    > "O framework fornece `EnterpriseRouter`, `ChannelMessage` e `AgentObserver`,
@@ -328,13 +446,19 @@ Scenario: Franquia do Turbo 40GB respondida sem LLM externo
    > condicionais — é sempre responsabilidade do AI Dev Sr.
    > No projeto real, esse grafo vai crescer conforme as jornadas."
 
-2. **`AgentObserver` noop precisou de segunda camada:**
-   > "Localmente, o `AgentObserver` não imprime nada — ele espera um
-   > `analytics` real (Langfuse, OCI). Adicionamos uma segunda camada de
-   > logging (`TRACE|tipo|campo=valor`). No projeto real, é a instância OCI
-   > que resolve isso."
+2. **Observabilidade em camadas: local → produção sem mudança de código:**
+   > "A camada 1 (AgentObserver) é a do framework — produção já usa OCI.
+   > As camadas 2–4 (log, SSE, Langfuse local) foram adicionadas sem alterar
+   > a interface do framework. No projeto real, trocamos o Langfuse local pela
+   > instância OCI — o código de tracer não muda."
 
-3. **B-006 permanece — instância OCI interna vs. repositório público:**
+3. **`NODE_OWNERS` como documentação viva:**
+   > "O dict `NODE_OWNERS` em `tracer.py` mapeia 26 componentes para os 4 papéis.
+   > Nos logs do terminal, cada evento aparece com o owner correspondente:
+   > `TRACE|FLOW|component=rag.query|owner=ANA`. No projeto real, esse mapa
+   > cresce conforme as jornadas são adicionadas ao grafo."
+
+4. **B-006 permanece — instância OCI interna vs. repositório público:**
    > "Esta PoC rodou sobre o repositório público. A instância interna
    > Oracle/TIM pode ter customizações. Recomendo pedir acesso antes do kickoff
    > do projeto real."
@@ -347,20 +471,23 @@ Scenario: Franquia do Turbo 40GB respondida sem LLM externo
 # Verificar saúde antes de qualquer demo
 Invoke-RestMethod -Uri "http://localhost:8000/health"
 
+# Verificar containers rodando
+docker compose ps
+
 # Fallback 1: demo sem HTTP (não depende do cluster)
 .\venv\Scripts\python scripts/run_demo.py
 
-# Fallback 2: resubir cluster manualmente
-# Terminal 1 — mock services:
-.\venv\Scripts\uvicorn mock_services.app:app --port 8001
+# Fallback 2: resubir por profile
+docker compose --profile infra up -d   # mock + langfuse + db
+docker compose --profile app up -d     # gateway
 
-# Terminal 2 — gateway (carregar .env primeiro):
-foreach($l in Get-Content .env){if($l -match "^([^#=][^=]*)=(.*)$"){[System.Environment]::SetEnvironmentVariable($Matches[1].Trim(),$Matches[2].Trim())}}
-$env:PYTHONPATH = "."
-.\venv\Scripts\uvicorn gateway.app:app --port 8000
+# Fallback 3: 3 terminais separados sem Docker
+scripts/start_mock.ps1      # terminal 1 — mock_services :8001
+scripts/start_gateway.ps1   # terminal 2 — gateway :8000
+scripts/start_chainlit.ps1  # terminal 3 — Chainlit :8080
 
 # Verificar portas
-netstat -ano | findstr ":8000\|:8001"
+netstat -ano | findstr ":8000\|:8001\|:8080\|:3000"
 ```
 
 ---
@@ -368,18 +495,18 @@ netstat -ano | findstr ":8000\|:8001"
 ## Perguntas esperadas e respostas
 
 **"O framework está realmente sendo usado?"**
-> Sim. `orchestrator/graph.py` L1–12 importa `ChannelMessage` (SPEC-003),
+> Sim. `orchestrator/graph.py` importa `ChannelMessage` (SPEC-003),
 > `EnterpriseRouter` (SPEC-004) e `AgentObserver` (SPEC-007-lite) do
 > `agent_framework` real — vendorizado de `agent_platform_oci/libs/`.
 > Os contratos são os do framework; a topologia do grafo é do AI Dev Sr.
 
 **"Por que o roteamento é por palavras-chave e não por LLM?"**
 > Decisão de PoC — `enable_llm_router: false` em `routing_config.yaml`.
-> Mantém determinismo e custo zero de tokens para validar a estrutura do grafo.
+> O roteamento em si usa palavras-chave (zero tokens). Os nós de resposta como `node_supervisor` chamam o LLM — mas o grafo inteiro é testável com mocks sem custo de API.
 > Ligar o LLM router é mudar uma linha no YAML — sem mudança de código.
 
 **"Onde está o RAG?"**
-> `rag_pipeline/query_api.py` L55–89: busca top-5 por similaridade cosine
+> `rag_pipeline/query_api.py`: busca top-5 por similaridade cosine
 > no Chroma, re-rankeia com CrossEncoder (`BAAI/bge-reranker-v2-m3`)
 > e aplica threshold 0.7. A evidência vai para `agent/prompt.py` → `[CONTEXTO]`.
 
@@ -387,16 +514,23 @@ netstat -ano | findstr ":8000\|:8001"
 > O mascaramento ocorre em `node_input_guardrails` (grafo),
 > que chama `check_input()` de Gustavo antes de qualquer routing.
 > O `sanitized_input` (com CPF mascarado) é o que chega ao LLM — o original
-> fica só no estado para auditoria. Verificável no trace: `violation=pii`.
+> fica só no estado para auditoria. Verificável no step do Chainlit: `violation=pii`.
 
 **"Quanto custa por request?"**
 > ~400–800 tokens de input (system + contexto RAG + pergunta)
 > + ~150 tokens de output. Modelo: gpt-4o-mini via Flow CI&T.
 > Para o projeto real, o provider muda (OCI Generative AI), não o código.
 
+**"O Langfuse é o Langfuse do projeto real?"**
+> Não — é uma instância self-hosted local via Docker Compose (`--profile infra`).
+> Ela demonstra a camada de persistência de traces que no projeto real será
+> substituída pela instância OCI Observability. O código do `tracer.py`
+> instancia `LangfuseAnalyticsPublisher` se as variáveis de ambiente estiverem
+> presentes — sem elas, o tracer funciona normalmente sem Langfuse.
+
 **"Isso vai para produção como está?"**
 > Não — esta é uma PoC local. O que vai para produção são os contratos
-> (QueryResult, GuardrailResult, ChannelMessage), a estrutura do grafo
-> e o aprendizado sobre o framework.
-> A infra (Chroma → ADW real, mock_services → agentes reais, vendoring → PyPI interno)
+> (QueryResult, GuardrailResult, ChannelMessage), a estrutura do grafo,
+> o padrão de 4 camadas de observabilidade, e o aprendizado sobre o framework.
+> A infra (Chroma → ADW real, mock_services → agentes reais, Langfuse local → OCI)
 > é substituída — o código de `agent/`, `orchestrator/` e os contratos são reaproveitados.

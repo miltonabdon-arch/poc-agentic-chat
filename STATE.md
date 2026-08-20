@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-08-19
+**Last Updated:** 2026-08-19 (sessão 2)
 **Escopo deste arquivo:** este `STATE.md` é local a este repositório (PoC de 2
 semanas do "Agente de Catálogo"). Ele **não substitui** o `STATE.md` do
 projeto principal do Agente de Planos e Ofertas (POV) — é um resumo extraído
@@ -9,13 +9,9 @@ apenas do contexto que esta PoC referencia em `docs/PROPOSTA-POC.md`,
 propostas comerciais e demais blockers do projeto principal vivem no
 `STATE.md` do repositório principal, não aqui.
 
-**Current Work:** Repositório criado em 2026-08-04 como esqueleto para o
-time implementar (contratos de dados, testes e documentação completos,
-módulos com `NotImplementedError`). Auditoria de 2026-08-05 corrigiu
-vazamentos de solução (thresholds/fórmulas calibradas expostos nos docs),
-migrou CI para GitHub Actions e fechou gaps de teste/lint (ver commit
-`be2ea6b`). Apresentação de kickoff (`docs/apresentacao-poc.html`) adicionada
-em 2026-08-06 para alinhar o time no Dia 1.
+**Current Work:** PoC funcional ponta a ponta com observabilidade completa (4 camadas + Langfuse).
+Demo de 7 casos validada via UI Chainlit. Branch `feature/orchestrator-agentframework-native`
+aguarda PR final na `main`. 58 testes unitários passando. Implementação completa concluída em 2026-08-19 (sessão 2).
 
 **⚠️ AD-008 revertido (2026-08-10) — ver AD-009 abaixo:** o commit AD-008
 (integração real do pacote `agent_framework`) foi revertido porque um dev do
@@ -77,7 +73,76 @@ escrita.
 
 ---
 
+## Status de implementação (2026-08-19)
+
+| Módulo | Status | Responsável |
+|---|---|---|
+| `rag_pipeline/vectorizer.py` | ✅ Implementado | Data Engineer (Ana) |
+| `rag_pipeline/query_api.py` | ✅ Implementado (CrossEncoder re-ranking, threshold 0.60) | Data Engineer (Ana) |
+| `rag_pipeline/extractor.py` | ✅ Implementado | Data Engineer (Ana) |
+| `agent/judge.py` | ✅ Implementado | AI Scientist (Gustavo) |
+| `agent/prompt.py` | ✅ Implementado | AI Scientist (Gustavo) |
+| `agent/guardrails/input_guardrail.py` | ✅ Implementado (PII + out-of-domain) | AI Scientist (Gustavo) |
+| `agent/guardrails/output_guardrail.py` | ✅ Implementado (context-leak + competitor + format) | AI Scientist (Gustavo) |
+| `agent/llm_client.py` | ✅ Implementado + timeout=30s + re-raise tipado | AI Dev Sr (Igor) |
+| `gateway/app.py` | ✅ Implementado | Backend (Kirllen) |
+| `gateway/channel_gateway.py` | ✅ Implementado | Backend (Kirllen) |
+| `orchestrator/graph.py` | ✅ Implementado (11 nós, 3 arestas condicionais, retry LLM) | AI Dev Sr (Igor) |
+| `orchestrator/tracer.py` | ✅ Implementado — 4 camadas: AgentObserver+Langfuse, log local, broadcaster SSE, Langfuse auto-hospedado | AI Dev Sr (Igor) |
+| `mock_services/` | ✅ Implementado (cancellation, deals, plans, CRM) + middleware log estruturado | Backend (Kirllen) |
+| `chainlit_app.py` | ✅ Implementado — UI seletiva, 11 tipos de evento, TaskList | AI Dev Sr (Igor) |
+
+## Checkpoints da PoC
+
+- [x] **Checkpoint 1 (Dia 5):** ingestão + RAG ponta a ponta — **concluído** (entregue até Dia 13)
+- [x] **Checkpoint 2 (Dia 9):** demo end-to-end via HTTP — **concluído** (5/5 casos, 2026-08-17)
+- [x] **Observabilidade avançada:** 4 camadas + Langfuse + UI Chainlit ao vivo — **concluído** (2026-08-19)
+- [x] **Correções pós-ensaio:** UI seletiva, RAG threshold, LLM retry — **concluído** (2026-08-19)
+- [ ] **Demo final + PR para main**
+
+## Testes (2026-08-19)
+
+- **58 testes unitários:** 100% passando (`pytest -m "not integration"`)
+- CI: ruff ✓ → pytest ✓ → docker build ✓ (run `32299946415`, commit `30c7923`)
+
+---
+
 ## Recent Decisions
+
+### AD-013: Correções pós-ensaio — UI, RAG threshold e LLM retry (2026-08-19)
+
+**Decision:** Série de ajustes aplicados após ensaio da demo com testes manuais reais:
+
+1. **UI — exibição seletiva de steps (`chainlit_app.py`):** FLOW steps suprimidos para nós do grafo (`node.*`); GRL suprimido quando `blocked=False`; STATE suprimido para `routing_decision` e `output_guardrails`; `_STEP_NODES = set()` — todos os NOC genéricos suprimidos; label do roteamento: "palavras-chave, sem LLM".
+2. **RAG threshold calibrado:** `_DEFAULT_THRESHOLD` de `0.70` para `0.60`. Motivação empírica: `bge-reranker-v2-m3` pontuou `0.638` para "plano família prime" — miss com threshold antigo.
+3. **LLM retry automático:** `_call_llm_and_trace()` faz 1 retry após 2s em `APITimeoutError`.
+4. **Mock services:** removidos prefixos de agente nas respostas (`[Agente Retenção]`, `[Agente Ofertas]`).
+
+**Reason:** Ensaio revelou UI poluída (~18 steps por interação), RAG falhando para planos existentes, timeouts sem recovery e labels de agente interno visíveis ao usuário.
+
+**Impact:** UI reduzida para ~8 steps. RAG passa para scores ≥0.60. Timeouts transientes recuperam sem erro visível.
+
+---
+
+### AD-011: Observabilidade avançada — Langfuse + 11 tipos de evento (2026-08-19)
+
+**Decision:** Expandir o tracer de 3 para 4 camadas, integrar Langfuse auto-hospedado e adicionar extensões locais de evento ao grafo (FLOW, LLM, RAG, MOCK, JUDGE, GRAPH, ORCH, STATE).
+
+**Reason:** A demo mostrava o fluxo como caixa preta — Chainlit só exibia nós ao terminar, sem visibilidade em tempo real. Com FLOW ENTER/EXIT, cada componente aparece imediatamente ao ser ativado.
+
+**Impact:** 11 tipos de evento ativos. Langfuse dashboard em `:3000` (opcional).
+
+---
+
+### AD-012: Refinamento de observabilidade pré-apresentação (2026-08-19)
+
+**Decision:** Remoção de eventos XOP (ruído); novos eventos GRAPH/ORCH; LLM com prompt/response completos na UI; judge sem falsos positivos para rotas não-RAG; supervisor com LLM real; Langfuse multi-turn com `sessionId`/`traceId` separados.
+
+**Reason:** Demo de 2026-08-19: cada membro do time precisa ver sua contribuição identificada no Chainlit.
+
+**Impact:** `chainlit.md` atualizado com tabela de legenda. Ícones por tipo de evento na UI.
+
+---
 
 ### AD-007: Adotar `agent_platform_oci` como base técnica obrigatória e confirmada de construção (2026-07-31)
 
@@ -602,6 +667,10 @@ generalizar a partir de só os componentes já corretos.
 - [x] **Checkpoint 1 (Dia 5):** atrasado no calendário original, mas
   tecnicamente concluído em 2026-08-17 — ingestão + RAG funcionando (todos
   os módulos de `rag_pipeline/` implementados, sem `NotImplementedError`).
-- [ ] Checkpoint 2 (Dia 9): primeira demo end-to-end via `docker-compose up`
+- [x] Checkpoint 2 (Dia 9): demo end-to-end via HTTP — **concluído** (5/5 casos, 2026-08-17)
+- [x] Observabilidade avançada — AD-011..AD-012, 2026-08-19 (Langfuse + 11 tipos de evento + Chainlit enrichment)
+- [x] Correções pós-ensaio — AD-013, 2026-08-19 (UI seletiva, RAG threshold 0.60, LLM retry, mock cleanup)
+- [ ] **PR: `feature/orchestrator-agentframework-native` → `main`** (próximo passo)
 - [ ] Demo final + relatório de achados técnicos (1-2 páginas) sobre o
   `agent_platform_oci` — ver `docs/PROPOSTA-POC.md`, seção 10
+- [ ] Migrar 3 módulos reinventados (ver L-003): `ChannelGateway.normalize()`, `GuardrailPipeline`, `JudgePipeline` — Deferred se fora do escopo de 2 semanas

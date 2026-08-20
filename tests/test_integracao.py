@@ -62,3 +62,24 @@ async def test_guardrail_input_mascara_cpf():
     """Sem LLM — valida que CPF não aparece na resposta final."""
     resposta = await run_interaction(_msg("Meu CPF é 987.654.321-00"))
     assert "987.654.321-00" not in resposta
+
+
+@pytest.mark.skipif(not os.environ.get("LLM_BASE_URL"), reason=_SKIP_LLM)
+@pytest.mark.asyncio
+async def test_billing_retorna_resposta_natural():
+    resposta = await run_interaction(_msg("Qual o valor da minha fatura?"))
+    assert isinstance(resposta, str) and len(resposta) > 10
+
+
+@pytest.mark.skipif(not os.environ.get("LLM_BASE_URL"), reason=_SKIP_LLM)
+@pytest.mark.asyncio
+async def test_eligibility_retorna_resposta_natural():
+    resposta = await run_interaction(_msg("Posso trocar de plano?"))
+    assert isinstance(resposta, str) and len(resposta) > 10
+
+
+@pytest.mark.skipif(not os.environ.get("LLM_BASE_URL"), reason=_SKIP_LLM)
+@pytest.mark.asyncio
+async def test_simulation_retorna_resposta_natural():
+    resposta = await run_interaction(_msg("Simula troca para turbo 40gb"))
+    assert isinstance(resposta, str) and len(resposta) > 10

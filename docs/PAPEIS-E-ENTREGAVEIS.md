@@ -40,7 +40,7 @@ e um judge leve offline.
 
 | Módulo | Arquivo | Responsabilidade |
 |---|---|---|
-| Prompt do agente | `agent/prompt.py` | Template de prompt que injeta o `QueryResult` como contexto, instrui o modelo a nunca responder sem evidência (`found: false` → resposta padrão "não encontrei essa informação") |
+| Prompt do agente | `agent/prompt.py` | Templates de prompt consumidos pelo orquestrador: `build_prompt()` injeta `QueryResult` como contexto (RAG), `build_crm_prompt()` serializa dados de API (billing/eligibility/simulation), `build_supervisor_prompt()` guia saudações e intenções não mapeadas. Regra central: `found=False` → `not_found_response()` sem chamar o LLM (anti-alucinação). |
 | Guardrail de input | `agent/guardrails/input_guardrail.py` | Mascarar PII (CPF, cartão) e bloquear pedidos fora de domínio, antes de chamar o LLM |
 | Guardrail de output | `agent/guardrails/output_guardrail.py` | Bloquear citação direta de concorrente por nome na resposta gerada |
 | Judge leve offline | `agent/judge.py` | Script que roda sobre um lote de interações já registradas e sinaliza respostas sem `source_document_id` (possível alucinação) |
@@ -69,6 +69,7 @@ simula o contrato de canal.
 | Runtime FastAPI | `gateway/app.py` | Expõe `POST /agent/interact`, delegando para o orquestrador; wrapper mínimo equivalente a `AgentRuntimeMixin` |
 | Health check | `gateway/health.py` | Endpoint `GET /health` |
 | Chat de validação manual | `gateway/static/chat.html` (servido em `GET /chat`) | Página HTML mínima, sem build, para conversar com o agente via navegador — não é frontend de produção, só facilita a demo/validação manual pós-integração |
+| Mock services | `mock_services/` | Agentes mock (cancellation, deals, plans) + CRM fake. Middleware de log estruturado `[MOCK] REQUEST/RESPONSE` com latência e `x-conversation-id` em cada request — rastreabilidade de dados sintéticos nos logs do compose. |
 | Pipeline CI | `.github/workflows/ci.yml` | Lint (`ruff`) + testes (`pytest`) + build da imagem Docker a cada push |
 | Testes | `tests/test_gateway.py` | Requisição válida retorna 200 com corpo esperado; requisição malformada retorna 422 (validação automática do Pydantic) |
 
@@ -90,9 +91,9 @@ observabilidade, e é o dono técnico da integração ponta a ponta.
 | Módulo | Arquivo | Responsabilidade |
 |---|---|---|
 | Router / Grafo | `orchestrator/graph.py` | Grafo LangGraph que orquestra: recebe `Interaction` do gateway → aciona guardrail de input → aciona agente → aciona guardrail de output → retorna resposta |
-| Observability Tracer | `orchestrator/tracer.py` | Registra, via OpenTelemetry local, cada interação (latência por etapa, guardrails acionados, chunk usado) |
+| Observability Tracer | `orchestrator/tracer.py` | 4 camadas: AgentObserver+Langfuse (IC/NOC/GRL), log local estruturado, broadcaster SSE, Langfuse auto-hospedado. `trace_flow()` emite FLOW ENTER/EXIT por componente. `NODE_OWNERS` mapeia 26 componentes para seus responsáveis (IGOR/ANA/GUSTAVO/KIRLLEN). |
 | Script de demo | `scripts/run_demo.py` | Roda as 5 perguntas de `CRITERIOS-DE-ACEITE.md` e imprime o resultado formatado |
-| `docker-compose.yml` | raiz do repo | Sobe Chroma + serviço FastAPI + qualquer dependência local necessária |
+| `docker-compose.yml` | raiz do repo | Sobe 4 serviços: gateway FastAPI, mock-services, langfuse (dashboard `:3000`), langfuse-db (Postgres) |
 | Testes de integração | `tests/test_integracao.py` | Roda o fluxo completo (ingestão já feita → pergunta → resposta) para as 5 perguntas de `CRITERIOS-DE-ACEITE.md` |
 
 **Responsabilidade adicional:** este papel é quem resolve conflitos de

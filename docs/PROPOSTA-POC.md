@@ -82,17 +82,25 @@ real da TIM — o que permite concluir a PoC em 2 semanas sem bloqueio externo.
 | Agente com prompt + RAG + guardrails de input/output (Camada 1, simplificada) | Camada 2 (regras de negócio como downgrade/elegibilidade) e Camada 3 (judges com Golden Standard Dataset) completas — apenas uma versão mínima ilustrativa |
 | Orquestração via grafo (equivalente ao Router do framework) | Roteamento entre múltiplas jornadas de negócio reais |
 | Channel Gateway simulando o contrato de entrada/saída (mock do formato SSE/TIA) | Integração real com o contrato SSE/TIA da TIM |
-| Observabilidade (tracing de interação, latência, guardrails acionados) | Integração com Langfuse/OpenTelemetry gerenciados — usar equivalente local/open-source |
+| Observabilidade com Langfuse auto-hospedado (tracing de interação, latência, guardrails, LLM calls, RAG, mock services — 10 tipos de evento) | Langfuse gerenciado em nuvem ou integração com OpenTelemetry collector externo |
 | Vector store local (Chroma ou similar) simulando o papel do ADW | ADW real (Oracle Autonomous Data Warehouse) |
 | LLM via API (mesmo provider que a equipe já tiver credencial — OCI Generative AI se disponível, senão outro compatível) | Provisionamento de infraestrutura OCI dedicada |
 | Pipeline CI no GitHub Actions (lint + testes + build) | Deploy contínuo em ambiente real |
 
 ## 6. Infraestrutura
 
-Tudo roda localmente via `docker-compose` — sem custo de nuvem e sem
+Tudo roda localmente via `docker compose` — sem custo de nuvem e sem
 depender do provisionamento OCI da TIM (ainda não confirmado, ver B-006/AD-007
 em `STATE.md`). Isso é uma decisão deliberada: a PoC não pode ficar bloqueada
 por um pré-requisito de infraestrutura que está fora do controle do time.
+
+Os serviços são separados em dois perfis (profiles) para permitir subir apenas
+o necessário em cada contexto:
+
+| Profile | Serviços | Quando usar |
+|---|---|---|
+| `infra` | mock-services, langfuse, langfuse-db | Simula os sistemas externos TIM + observabilidade |
+| `app` | gateway (app) | A entrega principal da PoC |
 
 - **Vector store:** Chroma (embutido, roda em processo local) — mock direto
   do papel do ADW no pipeline RAG
@@ -101,8 +109,10 @@ por um pré-requisito de infraestrutura que está fora do controle do time.
   compatível com a interface do framework serve para os fins desta PoC (a
   escolha do provider real de produção continua sendo decisão do projeto
   principal, não desta PoC)
-- **Observabilidade:** OpenTelemetry local (ex.: exportado para console/arquivo
-  JSON) — mock funcional do que SPEC-007 provê nativamente
+- **Observabilidade:** Langfuse auto-hospedado via `docker-compose` (dashboard
+  em `:3000`, sem custo de nuvem) + log estruturado local + broadcaster SSE
+  para o Chainlit — 4 camadas cobrindo IC/NOC/GRL (framework) e FLOW/LLM/RAG/
+  MOCK/JUDGE/GRAPH/ORCH/STATE (extensões locais)
 
 ## 7. Cronograma (2 semanas)
 
