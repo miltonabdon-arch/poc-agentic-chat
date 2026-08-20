@@ -17,6 +17,8 @@ def get_client() -> OpenAI:
         extra_headers["FlowTenant"] = os.environ["FLOW_TENANT"]
     if os.environ.get("FLOW_AGENT"):
         extra_headers["FlowAgent"] = os.environ["FLOW_AGENT"]
+    if os.environ.get("FLOW_TOKEN"):
+        extra_headers["Authorization"] = f"Bearer {os.environ['FLOW_TOKEN']}"
     return OpenAI(
         base_url=os.environ.get("LLM_BASE_URL"),
         api_key=os.environ.get("LLM_API_KEY", "not-needed-for-local-mock"),
