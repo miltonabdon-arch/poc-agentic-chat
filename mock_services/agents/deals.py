@@ -12,7 +12,7 @@ OFERTAS = [
 def interact(body: dict):
     return {
         "conversation_id": body.get("conversation_id"),
-        "response": f"[Agente Ofertas] Temos {len(OFERTAS)} planos disponíveis: "
+        "response": f"Temos {len(OFERTAS)} planos disponíveis: "
                     + ", ".join(f"{o['nome']} por R${o['preco']}" for o in OFERTAS),
         "ofertas": OFERTAS,
     }

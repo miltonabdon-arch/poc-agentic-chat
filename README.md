@@ -19,8 +19,8 @@ base de construção do Agente de Planos e Ofertas (POV) da TIM.
 | [`docs/INGESTAO.md`](docs/INGESTAO.md) | Documentação do pipeline de ingestão RAG — formato de dado, chunking, vetorização, como rodar |
 | [`docs/PAPEIS-E-ENTREGAVEIS.md`](docs/PAPEIS-E-ENTREGAVEIS.md) | O que cada papel do time entrega, dia a dia das 2 semanas |
 | [`docs/CRITERIOS-DE-ACEITE.md`](docs/CRITERIOS-DE-ACEITE.md) | Checklist de demonstração final |
-| [`STATE.md`](STATE.md) | Decisões, blockers e todos específicos desta PoC (resumo local — não substitui o `STATE.md` do projeto principal) |
-| [`docs/referencias/`](docs/referencias/) | Resumos de documentos do projeto principal citados pelos docs acima (não são specs desta PoC) |
+| [`STATE.md`](STATE.md) | Decisões, estado atual e histórico de ADs desta PoC |
+| [`docs/referencias/`](docs/referencias/) | Resumos de documentos do projeto principal citados pelos docs acima |
 
 ## Estrutura do repositório
 
@@ -29,13 +29,14 @@ poc-agentic-chat/
 ├── docs/                     # documentação (ver índice acima)
 │   └── diagrams/              # fontes .mmd dos diagramas de arquitetura
 ├── data/catalogo/             # dados sintéticos do catálogo (entrada da ingestão)
-├── rag_pipeline/               # Data Engineer — ingestão e consulta RAG
-├── agent/                      # AI Scientist / LLM Specialist — prompt, guardrails, judge
-├── gateway/                     # Backend / Integração — Channel Gateway + runtime FastAPI
-├── orchestrator/                # AI Developer Sr — grafo/router + observabilidade
+├── rag_pipeline/               # Data Engineer (Ana) — ingestão e consulta RAG
+├── agent/                      # AI Scientist (Gustavo) — prompt, guardrails, judge
+├── gateway/                     # Backend/Integração (Kirllen) — Channel Gateway + runtime FastAPI
+├── orchestrator/                # AI Developer Sr (Igor) — grafo LangGraph + tracer 4 camadas
+├── mock_services/               # Backend/Integração (Kirllen) — agentes mock + CRM fake
 ├── tests/                       # testes por camada
 ├── scripts/                     # scripts de setup e demo local
-├── docker-compose.yml            # sobe vector store local + app, sem dependência de nuvem
+├── docker-compose.yml            # app + mock-services + langfuse + langfuse-db
 ├── .github/workflows/ci.yml       # pipeline CI: lint + testes + build
 ├── requirements.txt
 └── .env.example
@@ -44,53 +45,67 @@ poc-agentic-chat/
 ## Requisitos
 
 - **Python 3.10+** (mesma faixa de versão do `agent_platform_oci` real,
-  confirmada em 3.12/3.13 — ver
-  [`docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md`](docs/referencias/relatorio-aderencia-agent-platform-oci-resumo.md)) —
-  o código usa sintaxe de union types moderna (`str | None`), incompatível
-  com Python 3.9. Se seu Python padrão for mais antigo, use `pyenv`/`venv`
-  com uma versão 3.10+ antes de instalar as dependências.
-- Docker + Docker Compose (para subir o serviço via `docker-compose.yml`)
+  confirmada em 3.12/3.13) — o código usa sintaxe de union types moderna
+  (`str | None`), incompatível com Python 3.9.
+- **Docker + Docker Compose** — para subir os serviços via profiles:
+  `--profile infra` (mock + Langfuse + DB) e `--profile app` (gateway).
 
 ## Quick start local
 
 ```bash
+# 1. Configurar variáveis de ambiente
 cp .env.example .env
+# Preencher obrigatoriamente: LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
+# Opcional: LANGFUSE_PUBLIC_KEY e LANGFUSE_SECRET_KEY (ver passo 4)
+
+# 2. Instalar dependências
 pip install -r requirements.txt
-# agent_framework não é publicado no PyPI — instalado direto do repositório
-# público, pinado no mesmo commit usado pelo CI (.github/workflows/ci.yml)
-# e pelo Dockerfile. Ver STATE.md (B-007) para o histórico deste ajuste.
-pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@f9c66b4792ac9fd63d7397dbab3bcac310e4d780#subdirectory=libs/agent_framework"
-python scripts/run_ingestao.py         # popula o vector store local (Chroma embutido) com data/catalogo/
-python scripts/run_demo.py             # roda o agente localmente com as perguntas de exemplo
-docker compose up -d                    # opcional: sobe o serviço FastAPI completo (gateway/app.py)
+
+# 3. Ingestão — popula o Chroma local com data/catalogo/
+python scripts/run_ingestao.py
+
+# 4. Subir os serviços de infraestrutura (mock + Langfuse)
+docker compose --profile infra up -d
+
+# Primeira execução do Langfuse: acessar http://localhost:3000,
+# criar um projeto e copiar as chaves para LANGFUSE_PUBLIC_KEY/SECRET_KEY no .env
+# (sem as chaves, o tracer opera nas camadas 1–3 sem enviar ao Langfuse)
+
+# 5. Subir a aplicação (gateway)
+docker compose --profile app up -d
+
+# 5. Rodar a demo automatizada (5 perguntas de docs/CRITERIOS-DE-ACEITE.md)
+python scripts/run_demo.py
 ```
 
-Detalhes de cada etapa em `docs/INGESTAO.md` e `docs/ARQUITETURA.md`.
+Detalhes de cada etapa em [`docs/INGESTAO.md`](docs/INGESTAO.md) e [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
-## Validação manual via chat
+## Demo interativa com Chainlit
 
-Com o serviço FastAPI no ar (`docker compose up -d` ou `uvicorn gateway.app:app`),
-abrir `http://localhost:8000/chat` no navegador expõe um chat HTML mínimo
-(`gateway/static/chat.html`, sem build/dependência) que chama
-`POST /agent/interact` diretamente — útil para validar visualmente o
-funcionamento depois que as 4 fatias estiverem integradas, com atalhos para
-as 5 perguntas de `docs/CRITERIOS-DE-ACEITE.md`. Não é frontend de produção
-nem substitui o checklist formal de demo.
+A interface principal de demonstração é a UI Chainlit em `:8080`, que exibe
+cada etapa do pipeline em tempo real com steps expansíveis e ícones por tipo de evento:
+
+```bash
+make ingest   # uma vez — popula chroma_data/ antes de subir
+make up       # sobe infra + gateway + chainlit
+```
+
+Ou via VS Code → Run & Debug → **"Apresentação Completa"** → F5 (modo local sem Docker).
+
+Cada componente do pipeline aparece como step expansível imediatamente ao
+ser ativado (não só ao terminar), com ícone por tipo de evento:
+🗺️ GRAPH · ✅ NOC · 📊 STATE · ⚙️ FLOW · 🔍 RAG · 🤖 LLM · 🎭 MOCK · ⚖️ JUDGE · 🏁 ORCH · 🛡️ GRL
 
 ## Estado do repositório
 
-Este repositório contém os **contratos de dados, testes e documentação
-completos**, mas os módulos de implementação estão deliberadamente vazios
-(`raise NotImplementedError`) — é o ponto de partida da PoC, não o
-resultado. Cada papel implementa sua fatia (ver
-`docs/PAPEIS-E-ENTREGAVEIS.md`) até os testes correspondentes passarem:
+Todos os módulos estão implementados e funcionais. Os testes passam sem LLM:
 
 ```bash
-pytest -m "not integration" tests/test_ingestao.py    # Data Engineer
-pytest -m "not integration" tests/test_agent.py       # AI Scientist / LLM Specialist
-pytest -m "not integration" tests/test_gateway.py     # Backend / Integração
-pytest -m "not integration" tests/test_integracao.py  # AI Developer Sr (após as 3 fatias acima)
+pytest -m "not integration"   # 56 testes unitários passando, sem LLM, sem ingestão prévia
 ```
 
-Os comentários `TODO` em cada módulo apontam o contrato esperado e o teste
-correspondente — não é necessário adivinhar o formato de retorno.
+Para testes de integração ponta a ponta (requerem LLM configurado e ingestão):
+
+```bash
+pytest -m integration
+```

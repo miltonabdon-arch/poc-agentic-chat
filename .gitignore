@@ -15,3 +15,7 @@ ESCOPO TÉCNICO.txt
 .chainlit/
 gw_err.log
 gw.log
+mock_err.txt
+mock_out.txt
+.files/
+vendor/

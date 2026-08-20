@@ -109,14 +109,26 @@ def quando_processa_unit(mensagem, chroma_bdd_unit, caplog, resposta_mock):
       - agent.llm_client.complete          → resposta fixa (sem chamada ao Flow API)
 
     Guardrails (Gustavo), LangGraph (Igor), tracer (Igor) rodam sem mock.
+
+    O mock captura o(s) prompt(s) realmente enviados ao LLM (side_effect em vez
+    de return_value fixo) para permitir asserções sobre QUAL prompt foi usado
+    (ex.: build_not_found_prompt vs build_prompt com evidência real) — um
+    return_value fixo validaria apenas que a string mockada aparece na
+    resposta, mesmo que o caminho de código percorrido estivesse errado.
     """
     from orchestrator.graph import run_interaction
 
+    prompts_enviados: list[str] = []
+
+    def _fake_complete(prompt, model=None, system=None):
+        prompts_enviados.append(prompt)
+        return resposta_mock
+
     with patch("rag_pipeline.vectorizer.get_client", return_value=chroma_bdd_unit):
-        with patch("agent.llm_client.complete", return_value=resposta_mock):
+        with patch("agent.llm_client.complete", side_effect=_fake_complete):
             resposta = asyncio.run(run_interaction(mensagem))
 
-    return {"resposta": resposta}
+    return {"resposta": resposta, "prompts_llm": prompts_enviados}
 
 
 @when("o agente processa via Flow CI&T", target_fixture="interacao")
@@ -176,14 +188,35 @@ def entao_resposta_nao_contem(interacao, nao_esperado):
 
 @then("a resposta indica que a informação não foi encontrada")
 def entao_nao_encontrado(interacao):
-    """§4: sem evidência RAG, o agente usa not_found_response() sem inventar.
+    """§4: sem evidência RAG, o agente usa build_not_found_prompt() + LLM sem inventar.
 
     Fragmento vem de agent/prompt.py — contrato de Gustavo (test_new_branch).
+
+    Além do fragmento na resposta (que um return_value fixo satisfaria mesmo
+    com o caminho de código errado), verifica que o prompt REALMENTE enviado
+    ao LLM veio de build_not_found_prompt() — não de build_prompt() com
+    evidência real do catálogo. Sem essa checagem, um bug que fizesse o RAG
+    "casar" incorretamente com um plano existente ainda passaria no teste,
+    pois o mock devolveria a mesma string fixa independente do prompt usado.
     """
     resposta = interacao["resposta"]
     assert _NOT_FOUND_FRAGMENT in resposta, (
         f"Esperado fragmento '{_NOT_FOUND_FRAGMENT}' (not_found_response).\n"
         f"Resposta obtida: {resposta}"
+    )
+
+    prompts = interacao.get("prompts_llm", [])
+    assert prompts, "Esperava que o LLM tivesse sido chamado (RAG miss → build_not_found_prompt + LLM)."
+    ultimo_prompt = prompts[-1]
+    assert "[INSTRUÇÕES]" in ultimo_prompt and "Não foi encontrado nenhum plano" in ultimo_prompt, (
+        "Esperava que o prompt enviado ao LLM viesse de build_not_found_prompt() "
+        "(RAG miss genuíno), mas o conteúdo sugere build_prompt() com evidência "
+        f"real do catálogo — possível falso positivo do RAG.\nPrompt: {ultimo_prompt}"
+    )
+    assert "[fonte interno:" not in ultimo_prompt, (
+        "O prompt enviado ao LLM contém uma seção de evidência RAG "
+        "([fonte interno: ...]) — isso indica que o RAG encontrou (incorretamente) "
+        f"um chunk para um plano que deveria ser tratado como inexistente.\nPrompt: {ultimo_prompt}"
     )
 
 

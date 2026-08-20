@@ -2,12 +2,11 @@
 
 Filosofia "sem evidência, sem invenção":
   - rag_pipeline/query_api.py: threshold corta candidatos fracos (Ana).
-  - agent/prompt.py: build_prompt() retorna None → not_found_response() (Gustavo).
-  - O grafo LangGraph propaga essa decisão sem chamar o LLM (Igor).
+  - agent/prompt.py: build_not_found_prompt() instrui o LLM a responder honestamente (Gustavo).
+  - O grafo LangGraph chama o LLM com build_not_found_prompt() quando found=False (Igor).
 
-Os cenários @unit patcham o LLM, mas para perguntas fora do catálogo o LLM
-nunca é chamado (not_found_response() é retornado antes) — o mock é inócuo.
-Isso valida que o pipeline respeita a decisão de not_found_response().
+Os cenários @unit patcham o LLM com o fragmento esperado ("Não encontrei essa informação"),
+validando que o fluxo completo (RAG miss → build_not_found_prompt → LLM) produz a resposta correta.
 
 Steps compartilhados vêm de tests/step_defs/conftest.py.
 """
