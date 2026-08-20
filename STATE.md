@@ -508,6 +508,79 @@ manual.
 
 ---
 
+### B-010: `node_judge` marcava todo RAG-miss genuíno do `catalog_agent` como possível alucinação; teste do critério §4 era tautológico (2026-08-20)
+
+**Discovered:** 2026-08-20, revisão da PR #7
+(`feature/orchestrator-agentframework-native` → `main`, "PoC Agente de
+Catálogo TIM — completa") antes do merge.
+
+**Problem (2 achados relacionados):**
+1. Em `orchestrator/graph.py::node_judge`, `expects_source` era calculado
+   como `state.get("route") == "catalog_agent"` — `True` mesmo quando o RAG
+   genuinamente não encontrou nada (`chunk_id=None`, fluxo correto do
+   critério §4 via `build_not_found_prompt()` + LLM). Como
+   `agent/judge.py::_check_groundedness` sinalizava "possível alucinação"
+   sempre que `expects_source=True` e faltava `source_document_id`, **todo
+   caso correto de "não encontrei"** aparecia como suspeito de alucinação no
+   evento `JUDGE` (visível na UI Chainlit) — o oposto do comportamento
+   esperado.
+2. O step `quando_processa_unit` (`tests/step_defs/conftest.py`) patchava
+   `agent.llm_client.complete` com `return_value` fixo. Como a própria PR #7
+   mudou o fluxo de RAG-miss para *chamar* o LLM (antes não chamava), o
+   teste do critério §4 passou a validar apenas "a string mockada aparece na
+   resposta final" — não que o RAG realmente retornou `found=False` nem que
+   `build_not_found_prompt()` foi de fato usado. Um bug que fizesse o RAG
+   "casar" incorretamente com um plano inexistente continuaria passando no
+   mesmo teste.
+
+Havia também uma branch paralela de outro dev (`branch_improve_judge`,
+`gbezerra-ciandt`) que resolvia o item 1 de forma diferente: reescrevendo
+`_check_groundedness` para checar o próprio texto da resposta (regex
+`_NOT_FOUND_RE`) em vez de depender de `expects_source`, e adicionando 4
+checks novos ao judge (`unwarranted_deflection`, `topic_coherence`,
+`fabricated_data`, mais `empty_response` já existente) — mas essa branch
+partiu de antes da PR #7 e não incluía observabilidade/RAG threshold/retry.
+
+**Resolution:** ✅ Mesclado em 2026-08-20, branch
+`fix/judge-groundedness-e-teste-tautologico` (a partir de
+`feature/orchestrator-agentframework-native`):
+- `agent/judge.py` incorporou os 7 checks de `branch_improve_judge`, mas
+  preservando o parâmetro `expects_source` (que a branch do colega havia
+  removido) para não regredir os domínios CRM (billing/eligibility/
+  simulation legitimamente não têm `source_document_id`) — `_check_groundedness`
+  e `_check_fabricated_data` agora combinam as duas heurísticas: só disparam
+  quando `expects_source` é `True` (ou omitido) **e** a resposta não contém
+  o padrão de "não encontrei".
+- `node_judge` passou a enviar também `question` (de `sanitized_input`) para
+  habilitar o novo check `topic_coherence`, e o evento `JUDGE` agora expõe
+  `reasons` (lista) em vez de `reason` (primeiro motivo apenas).
+- `tests/step_defs/conftest.py::quando_processa_unit` trocou
+  `patch(..., return_value=...)` por `patch(..., side_effect=_fake_complete)`
+  que captura todos os prompts enviados; o step
+  `entao_nao_encontrado` (usado pelo critério §4) agora verifica que o
+  último prompt contém o marcador de `build_not_found_prompt()`
+  (`"[INSTRUÇÕES]"` + `"Não foi encontrado nenhum plano"`) e **não** contém
+  `"[fonte interno:"` (marcador de `build_prompt()` com evidência real).
+- Testes novos em `tests/test_judge.py` e `tests/test_agent.py` cobrem
+  explicitamente: RAG-miss genuíno não flagado mesmo com
+  `expects_source=True`; alucinação real (resposta afirmativa sem "não
+  encontrei" e sem fonte) ainda é flagada; domínio CRM com nome/valor
+  monetário não é marcado como dado fabricado.
+- 46 testes unitários (`test_judge.py` + `test_agent.py`) e `ruff check`
+  passando neste ambiente. Suíte BDD completa (`pytest-bdd`,
+  `agent_framework`) não pôde ser executada localmente por falta de
+  dependências instaladas no venv de smoketest — validação final depende do
+  CI ao abrir o PR.
+
+**Impact:** sem este fix, a demo do Caso 4 §4 (o critério anti-alucinação,
+central na apresentação) mostraria um falso positivo de "possível
+alucinação" no step JUDGE toda vez que o agente respondesse corretamente
+"não encontrei" — e o teste automatizado que deveria pegar justamente esse
+tipo de regressão não teria detectado nem essa falha nem uma alucinação real
+equivalente.
+
+---
+
 ## Lessons Learned (relevantes para esta PoC)
 
 ### L-001: `docs/ACHADOS-TECNICOS.md` cita SPEC errada para `ChannelMessage` e `EnterpriseRouter` (2026-08-19)

@@ -133,4 +133,42 @@ def test_judge_nao_flagga_rota_sem_fonte():
     ]
     findings = judge_batch(items)
     assert len(findings) == 1
-    assert not findings[0].flagged, f"Esperava não flaggado, mas reason={findings[0].reason}"
+    assert not findings[0].flagged, f"Esperava não flaggado, mas reasons={findings[0].reasons}"
+
+
+def test_judge_nao_flagga_rag_miss_genuino_do_catalog_agent():
+    """expects_source=True (catalog_agent) mas resposta é honesta 'não encontrei'
+    gerada por build_not_found_prompt() — não deve ser marcada como alucinação
+    nem como dado fabricado, mesmo sem source_document_id.
+    """
+    items = [
+        {
+            "interaction_id": "test-2",
+            "question": "Quais gigas inclui o Plano Diamante Exclusivo da TIM?",
+            "response": not_found_response(),
+            "source_document_id": None,
+            "expects_source": True,
+        }
+    ]
+    findings = judge_batch(items)
+    assert len(findings) == 1
+    assert not findings[0].flagged, f"Esperava não flaggado, mas reasons={findings[0].reasons}"
+
+
+def test_judge_flagga_alucinacao_quando_catalog_agent_inventa_sem_dizer_nao_encontrei():
+    """expects_source=True e resposta afirmativa (sem 'não encontrei') mas sem
+    source_document_id — cenário real de alucinação que o judge deve capturar.
+    """
+    items = [
+        {
+            "interaction_id": "test-3",
+            "question": "Quais gigas inclui o Plano Diamante Exclusivo da TIM?",
+            "response": "O Plano Diamante Exclusivo inclui 500 GB de franquia mensal.",
+            "source_document_id": None,
+            "expects_source": True,
+        }
+    ]
+    findings = judge_batch(items)
+    assert len(findings) == 1
+    assert findings[0].flagged
+    assert any("alucinação" in r for r in findings[0].reasons)

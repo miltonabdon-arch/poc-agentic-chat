@@ -8,12 +8,23 @@ from agent.judge import (
 from agent.prompt import not_found_response
 
 
-def _interaction(response, source_document_id=None, interaction_id="i1"):
-    return {
+def _interaction(
+    response,
+    source_document_id=None,
+    interaction_id="i1",
+    question=None,
+    expects_source=None,
+):
+    data = {
         "interaction_id": interaction_id,
         "response": response,
         "source_document_id": source_document_id,
     }
+    if question is not None:
+        data["question"] = question
+    if expects_source is not None:
+        data["expects_source"] = expects_source
+    return data
 
 
 # --- check_empty_response ---
@@ -57,6 +68,30 @@ def test_groundedness_nao_aplica_a_response_nulo():
     assert "vazia" in result[0].reason
 
 
+def test_groundedness_ok_rag_miss_genuino_com_expects_source():
+    """RAG miss genuíno (mensagem 'não encontrei') não deve ser alucinação
+    mesmo com expects_source=True — ver orchestrator/graph.py node_judge.
+    """
+    result = judge_batch([_interaction(
+        not_found_response(),
+        source_document_id=None,
+        expects_source=True,
+    )])
+    assert not any("alucinação" in r for r in result[0].reasons)
+
+
+def test_groundedness_nao_aplica_quando_expects_source_false():
+    """Domínios CRM (billing/eligibility/simulation) legitimamente não têm
+    source_document_id — expects_source=False deve suprimir o check.
+    """
+    result = judge_batch([_interaction(
+        "Sua fatura deste mês é de R$ 79,90.",
+        source_document_id=None,
+        expects_source=False,
+    )])
+    assert not any("alucinação" in r for r in result[0].reasons)
+
+
 # --- check_not_found_consistency ---
 
 def test_not_found_consistency_flagga_quando_tinha_fonte():
@@ -96,6 +131,123 @@ def test_length_anomaly_ok_response_no_limite():
     no_limite = "X" * _MIN_RESPONSE_CHARS
     result = judge_batch([_interaction(no_limite, source_document_id="turbo-40gb")])
     assert result[0].flagged is False
+
+
+# --- check_unwarranted_deflection ---
+
+def test_deflection_flagga_quando_tinha_fonte():
+    result = judge_batch([_interaction(
+        "Consulte um atendente para mais informações.",
+        source_document_id="controle-100gb",
+    )])
+    assert result[0].flagged is True
+    assert "atendente" in result[0].reason
+
+
+def test_deflection_flagga_acesse_site_com_fonte():
+    result = judge_batch([_interaction(
+        "Acesse o site oficial da TIM para mais detalhes.",
+        source_document_id="turbo-40gb",
+    )])
+    assert result[0].flagged is True
+    assert "atendente" in result[0].reason
+
+
+def test_deflection_ok_sem_fonte():
+    result = judge_batch([_interaction(
+        "Consulte um atendente para mais informações.",
+        source_document_id=None,
+    )])
+    assert "atendente" not in (result[0].reason or "")
+
+
+def test_deflection_ok_resposta_normal_com_fonte():
+    result = judge_batch([_interaction(
+        "O Plano Controle 100GB inclui internet e ligações ilimitadas.",
+        source_document_id="controle-100gb",
+    )])
+    assert result[0].flagged is False
+
+
+# --- check_topic_coherence ---
+
+def test_topic_coherence_flagga_baixo_overlap():
+    result = judge_batch([_interaction(
+        question="quero cancelar minha conta",
+        response="Sua fatura do mês de agosto venceu no dia dez e está disponível para pagamento.",
+        source_document_id="billing",
+    )])
+    assert result[0].flagged is True
+    assert "overlap" in result[0].reasons[-1] or any("overlap" in r for r in result[0].reasons)
+
+
+def test_topic_coherence_ok_alto_overlap():
+    result = judge_batch([_interaction(
+        question="quero cancelar meu plano",
+        response="Para cancelar seu plano entre em contato com nossa central de cancelamentos.",
+        source_document_id=None,
+    )])
+    assert not any("overlap" in r for r in result[0].reasons)
+
+
+def test_topic_coherence_ignorado_sem_question():
+    result = judge_batch([_interaction(
+        response="Sua fatura está disponível para pagamento.",
+        source_document_id="billing",
+    )])
+    assert not any("overlap" in r for r in result[0].reasons)
+
+
+# --- check_fabricated_data ---
+
+def test_fabricated_data_flagga_nome_proprio_sem_fonte():
+    result = judge_batch([_interaction(
+        response="Olá, João Silva! Sua fatura está em aberto.",
+        source_document_id=None,
+    )])
+    assert result[0].flagged is True
+    assert any("fabricado" in r for r in result[0].reasons)
+
+
+def test_fabricated_data_flagga_valor_monetario_sem_fonte():
+    result = judge_batch([_interaction(
+        response="O valor da sua fatura é R$ 79,90.",
+        source_document_id=None,
+    )])
+    assert result[0].flagged is True
+    assert any("fabricado" in r for r in result[0].reasons)
+
+
+def test_fabricated_data_ok_com_fonte():
+    result = judge_batch([_interaction(
+        response="O Plano Controle 100GB custa R$ 99,90 por mês.",
+        source_document_id="controle-100gb",
+    )])
+    assert not any("fabricado" in r for r in result[0].reasons)
+
+
+def test_fabricated_data_nao_aplica_quando_expects_source_false():
+    """Domínio CRM (billing) cita nome/valor reais da API mock sem chunk_id —
+    não é dado fabricado, é resposta CRM legítima.
+    """
+    result = judge_batch([_interaction(
+        response="Olá, João Silva! Sua fatura de R$ 79,90 venceu ontem.",
+        source_document_id=None,
+        expects_source=False,
+    )])
+    assert not any("fabricado" in r for r in result[0].reasons)
+
+
+# --- acumula todos os reasons ---
+
+def test_judge_acumula_multiplos_problemas():
+    result = judge_batch([_interaction(
+        question="cancelar conta",
+        response="Sua fatura de R$ 79,90 venceu ontem.",
+        source_document_id=None,
+    )])
+    assert result[0].flagged is True
+    assert len(result[0].reasons) >= 2
 
 
 # --- judge_batch: contrato geral ---

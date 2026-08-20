@@ -382,7 +382,10 @@ async def node_judge(state: GraphState) -> GraphState:
 
     Não modifica o estado — apenas emite evento JUDGE com os resultados.
     expects_source=True somente para catalog_agent, pois outros domínios
-    (billing, eligibility, etc.) não usam RAG e não têm chunk_id esperado.
+    (billing, eligibility, etc.) não usam RAG e não têm chunk_id esperado —
+    judge_batch() usa esse campo para não marcar como alucinação/dado
+    fabricado uma resposta CRM legítima sem chunk_id, e para não marcar
+    como alucinação um "não encontrei" genuíno do catalog_agent.
     """
     from agent.judge import judge_batch
 
@@ -390,6 +393,7 @@ async def node_judge(state: GraphState) -> GraphState:
     await trace_flow("ENTER", "node.judge", msg)
     items = [{
         "interaction_id": msg.session_id,
+        "question": state.get("sanitized_input"),
         "response": state["final_answer"],
         "source_document_id": state.get("chunk_id"),
         # Apenas catalog_agent usa RAG; outros domínios não têm fonte esperada
@@ -397,13 +401,13 @@ async def node_judge(state: GraphState) -> GraphState:
     }]
     try:
         findings = judge_batch(items)
-        # Filtra apenas itens sinalizados para incluir o motivo no evento
+        # Filtra apenas itens sinalizados para incluir os motivos no evento
         flagged = [f for f in findings if f.flagged]
         await trace_interaction("JUDGE", msg, {
             "n_itens": len(items),
             "flagged": len(flagged),
             "status": "OK",
-            **({"reason": flagged[0].reason} if flagged else {}),
+            **({"reasons": flagged[0].reasons} if flagged else {}),
         })
         await trace_flow("EXIT", "node.judge", msg, {"status": "OK"})
     except Exception:
