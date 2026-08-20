@@ -1,0 +1,10 @@
+enabled: true
+
+judges:
+  - name: groundedness
+    enabled: true
+    threshold: 0.6
+
+  - name: response_quality
+    enabled: true
+    threshold: 0.7
