@@ -61,19 +61,17 @@ docker compose ps
 # langfuse-db      healthy
 ```
 
-**3. Subir a aplicação (gateway)**
+**3. Subir a aplicação**
 
-Via VS Code — Run & Debug → **"Apresentação Completa"** → F5 (3 terminais).
-OU via terminal:
+Via terminal (WSL):
 
-```powershell
-docker compose --profile app up -d
+```bash
+make up
 ```
 
-Aguardar `Application startup complete.` nos terminais de gateway e Chainlit.
+Aguardar todos os serviços ficarem `healthy` (`docker compose ps`).
 
-> **Alternativa rápida (sem Docker):** usar os scripts PowerShell:
-> `scripts/start_mock.ps1` | `scripts/start_gateway.ps1` | `scripts/start_chainlit.ps1`
+> **Alternativa (modo local sem Docker):** VS Code → Run & Debug → **"Apresentação Completa"** → F5.
 
 **4. Verificar saúde**
 
@@ -481,10 +479,8 @@ docker compose ps
 docker compose --profile infra up -d   # mock + langfuse + db
 docker compose --profile app up -d     # gateway
 
-# Fallback 3: 3 terminais separados sem Docker
-scripts/start_mock.ps1      # terminal 1 — mock_services :8001
-scripts/start_gateway.ps1   # terminal 2 — gateway :8000
-scripts/start_chainlit.ps1  # terminal 3 — Chainlit :8080
+# Fallback 3: modo local sem Docker (via VS Code F5)
+# Run & Debug → "Apresentação Completa" → F5
 
 # Verificar portas
 netstat -ano | findstr ":8000\|:8001\|:8080\|:3000"

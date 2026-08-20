@@ -8,10 +8,10 @@ sem qualquer dependência de nuvem ou credencial de produção.
 
 - [ ] `python scripts/run_ingestao.py` processa `data/catalogo/` sem erro
       (Chroma embutido, sem serviço externo)
-- [ ] `docker compose --profile infra up -d` sobe mock-services + langfuse + langfuse-db sem erro
-- [ ] `docker compose --profile app up -d` sobe o gateway sem erro
+- [ ] `make up` sobe mock-services + langfuse + gateway + chainlit sem erro
 - [ ] `curl localhost:8000/health` retorna 200 (gateway)
 - [ ] `curl localhost:8001/health` retorna 200 (mock services)
+- [ ] `curl localhost:8080/health` retorna 200 (chainlit)
 
 ## 2. Ingestão
 

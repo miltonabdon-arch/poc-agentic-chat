@@ -86,11 +86,11 @@ A interface principal de demonstração é a UI Chainlit em `:8080`, que exibe
 cada etapa do pipeline em tempo real com steps expansíveis e ícones por tipo de evento:
 
 ```bash
-# 3 terminais (ou via VSCode "Apresentação Completa"):
-scripts/start_mock.ps1        # terminal 1 — mock services :8001
-scripts/start_gateway.ps1     # terminal 2 — gateway :8000
-scripts/start_chainlit.ps1    # terminal 3 — UI Chainlit :8080
+make ingest   # uma vez — popula chroma_data/ antes de subir
+make up       # sobe infra + gateway + chainlit
 ```
+
+Ou via VS Code → Run & Debug → **"Apresentação Completa"** → F5 (modo local sem Docker).
 
 Cada componente do pipeline aparece como step expansível imediatamente ao
 ser ativado (não só ao terminar), com ícone por tipo de evento:
