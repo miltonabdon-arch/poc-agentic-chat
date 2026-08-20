@@ -22,20 +22,17 @@ pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@
                               # agent_framework não está no PyPI — instalado direto do repo (ver STATE.md B-007)
 
 # Ingestão (popula Chroma local com data/catalogo/)
-python scripts/run_ingestao.py
+make ingest                    # ou: python scripts/run_ingestao.py
 
 # Demo ponta a ponta (5 perguntas de docs/CRITERIOS-DE-ACEITE.md)
 python scripts/run_demo.py
 
-# Demo interativa com UI Chainlit (3 terminais separados ou via VSCode "Apresentação Completa")
-scripts/start_mock.ps1        # terminal 1 — mock services :8001
-scripts/start_gateway.ps1     # terminal 2 — gateway :8000
-scripts/start_chainlit.ps1    # terminal 3 — UI Chainlit :8080
-
-# Serviços separados por perfil (profile):
-docker compose --profile infra up -d   # mock-services + langfuse + langfuse-db
-docker compose --profile app up -d    # gateway (requer infra no ar)
-docker compose --profile infra --profile app up -d  # tudo junto
+# Cluster via containers (WSL)
+make ingest                    # 1× — popula chroma_data/ antes de subir
+make up                        # sobe infra + gateway + chainlit
+make down                      # derruba tudo
+make infra-up                  # só mock-services + langfuse
+make infra-down
 
 # Langfuse dashboard disponível em http://localhost:3000
 # Na primeira execução: criar projeto em :3000 e copiar as chaves para .env

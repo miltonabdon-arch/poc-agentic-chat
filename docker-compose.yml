@@ -38,6 +38,31 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
+  # Perfil: app
+  # UI de demonstração — cliente HTTP do gateway, sem imports internos.
+  # Roda no mesmo Dockerfile do gateway (chainlit_app.py já está no COPY . .).
+  #
+  # docker compose --profile infra --profile app up -d
+  # ---------------------------------------------------------------------------
+  chainlit:
+    profiles: ["app"]
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - GATEWAY_URL=http://app:8000
+    command: chainlit run chainlit_app.py --port 8080 --host 0.0.0.0 --headless
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
   # Perfil: infra
   # Dependências externas da app: mock dos sistemas TIM + observabilidade.
   # Representa o que seriam sistemas reais em produção (CRM, agentes de negócio)
