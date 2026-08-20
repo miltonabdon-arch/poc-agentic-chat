@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-08-19 (sessão 2)
+**Last Updated:** 2026-08-20
 **Escopo deste arquivo:** este `STATE.md` é local a este repositório (PoC de 2
 semanas do "Agente de Catálogo"). Ele **não substitui** o `STATE.md` do
 projeto principal do Agente de Planos e Ofertas (POV) — é um resumo extraído
@@ -10,8 +10,10 @@ propostas comerciais e demais blockers do projeto principal vivem no
 `STATE.md` do repositório principal, não aqui.
 
 **Current Work:** PoC funcional ponta a ponta com observabilidade completa (4 camadas + Langfuse).
-Demo de 7 casos validada via UI Chainlit. Branch `feature/orchestrator-agentframework-native`
-aguarda PR final na `main`. 58 testes unitários passando. Implementação completa concluída em 2026-08-19 (sessão 2).
+Demo de 7 casos validada via UI Chainlit. **PR #7 mergeada na `main` em
+2026-08-20** (commit `ed83c26`), incluindo o fix de B-010 (falso positivo
+de alucinação no judge + teste tautológico do critério §4). CI 100% verde.
+Pendência aberta: branch `branch_improve_judge` órfã no remoto (ver B-010).
 
 **⚠️ AD-008 revertido (2026-08-10) — ver AD-009 abaixo:** o commit AD-008
 (integração real do pacote `agent_framework`) foi revertido porque um dev do
@@ -571,6 +573,11 @@ partiu de antes da PR #7 e não incluía observabilidade/RAG threshold/retry.
   `agent_framework`) não pôde ser executada localmente por falta de
   dependências instaladas no venv de smoketest — validação final depende do
   CI ao abrir o PR.
+- ✅ **Confirmado via CI real, 2026-08-20:** commit `fe82bb1` pushado
+  direto na branch `feature/orchestrator-agentframework-native` (PR #7).
+  CI 100% verde (Lint ✅, Testes ✅, Build imagem Docker ✅). PR #7
+  mergeada na `main` por Igor Scaglia às 2026-08-20T15:02:06Z (merge
+  commit `ed83c26`).
 
 **Impact:** sem este fix, a demo do Caso 4 §4 (o critério anti-alucinação,
 central na apresentação) mostraria um falso positivo de "possível
@@ -578,6 +585,16 @@ alucinação" no step JUDGE toda vez que o agente respondesse corretamente
 "não encontrei" — e o teste automatizado que deveria pegar justamente esse
 tipo de regressão não teria detectado nem essa falha nem uma alucinação real
 equivalente.
+
+**Pendência aberta — branch `branch_improve_judge` (Gustavo, `gbezerra-ciandt`)
+ainda existe no remoto sem PR aberta:** essa branch reescrevia
+`agent/judge.py` com os mesmos 7 checks já incorporados acima (partindo de
+um ponto anterior à PR #7, sem observabilidade/RAG threshold/retry). Como o
+conteúdo relevante dela já foi mesclado em `main` via este B-010, abrir uma
+PR a partir dela agora geraria conflito redundante em `agent/judge.py` e
+`tests/test_judge.py`. **Ação recomendada:** avisar Gustavo para não abrir
+PR dessa branch sem antes rebasear contra `main` atual (ou simplesmente
+descartar a branch, já que o conteúdo já está em `main`).
 
 ---
 
