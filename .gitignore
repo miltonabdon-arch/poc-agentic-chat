@@ -11,9 +11,11 @@ chroma_data_*/
 htmlcov/
 ESCOPO TÉCNICO.txt
 .DS_Store
-vendor/
 .playwright-mcp/
 .chainlit/
 gw_err.log
 gw.log
-.idea/
+mock_err.txt
+mock_out.txt
+.files/
+vendor/
