@@ -1,6 +1,6 @@
 # Roteiro de Apresentação — Agente de Catálogo TIM (PoC)
 
-**Data:** 2026-08-19 | **Apresentador:** Igor Scaglia (AI Developer Sr, CI&T)
+**Data:** 2026-08-21 | **Apresentador:** Igor Scaglia (AI Developer Sr, CI&T)
 **Duração estimada:** 25–30 minutos
 
 ---
@@ -304,7 +304,7 @@ async def trace_flow(subtype, component, channel_message, payload=None):
 **Conflito que precisou resolver (AD-008 → AD-009 → AD-010):**
 > "A primeira tentativa de integrar o `agent_framework` causou conflitos
 > com as outras branches em andamento. Revertemos, esperamos as branches
-> ficarem prontas, e reintroduzimos via vendoring — 3 dias de custo,
+> ficarem prontas, e reintroduzimos com instalação pinada via `pip install --no-deps git+https://...` — CI e Dockerfile usam o mesmo hash de commit, reprodutível em qualquer ambiente. 3 dias de custo,
 > aprendizado real para o projeto."
 
 ---
@@ -493,7 +493,7 @@ netstat -ano | findstr ":8000\|:8001\|:8080\|:3000"
 **"O framework está realmente sendo usado?"**
 > Sim. `orchestrator/graph.py` importa `ChannelMessage` (SPEC-003),
 > `EnterpriseRouter` (SPEC-004) e `AgentObserver` (SPEC-007-lite) do
-> `agent_framework` real — vendorizado de `agent_platform_oci/libs/`.
+> `agent_framework` real — instalado via `pip install --no-deps git+https://...` pinado em commit fixo no CI e no Dockerfile.
 > Os contratos são os do framework; a topologia do grafo é do AI Dev Sr.
 
 **"Por que o roteamento é por palavras-chave e não por LLM?"**
@@ -504,7 +504,7 @@ netstat -ano | findstr ":8000\|:8001\|:8080\|:3000"
 **"Onde está o RAG?"**
 > `rag_pipeline/query_api.py`: busca top-5 por similaridade cosine
 > no Chroma, re-rankeia com CrossEncoder (`BAAI/bge-reranker-v2-m3`)
-> e aplica threshold 0.7. A evidência vai para `agent/prompt.py` → `[CONTEXTO]`.
+> e aplica threshold 0.60. A evidência vai para `agent/prompt.py` → `[CONTEXTO]`.
 
 **"O CPF realmente não chega ao LLM?"**
 > O mascaramento ocorre em `node_input_guardrails` (grafo),

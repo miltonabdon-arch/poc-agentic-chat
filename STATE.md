@@ -722,9 +722,10 @@ generalizar a partir de só os componentes já corretos.
   Backend/Integração, integração hardcoded do AI Developer Sr) — ver
   `docs/PAPEIS-E-ENTREGAVEIS.md`. Confirmado 2026-08-17: nenhum módulo
   com `NotImplementedError`, suíte de testes 100% verde.
-- [ ] Corrigir lint pré-existente: `mock_services/agents/cancellation.py:16`
-  (`ruff F841`, variável `msg` não usada) — único motivo do CI de `main`
-  ainda aparecer vermelho após o merge do PR #4.
+- [x] Corrigir lint pré-existente: `mock_services/agents/cancellation.py:16`
+  (`ruff F841`, variável `msg` não usada) — resolvido no merge da PR #7
+  (variável removida junto com a refatoração do módulo). `ruff check .`
+  confirma "All checks passed!" em `main` (2026-08-20).
 - [x] Resolver item (a) de B-007 — conflito de dependência no
   `requirements.txt` (`fastapi`×`chainlit` e, depois de corrigido esse,
   `opentelemetry-api`×`traceloop-sdk` via `chainlit`). Corrigido em
@@ -749,18 +750,19 @@ generalizar a partir de só os componentes já corretos.
 - [x] Corrigir B-009: trocar `_observer.emit(event_type=...)` por
   `emit_ic()`/`emit_noc()`/`emit_grl()` em `orchestrator/tracer.py` — a
   Camada 1 (framework real) hoje nunca dispara. Corrigido em 2026-08-19.
-- [ ] Decidir e, se aprovado, migrar os 3 módulos reinventados listados na
+- [ ] Discutir com o time e decidir sobre os 3 módulos reinventados listados na
   tabela de aderência do L-003: `gateway/channel_gateway.py::normalize()`
   → `ChannelGateway.normalize()`; `agent/guardrails/` → `GuardrailPipeline`;
-  `agent/judge.py` → `JudgePipeline`. Se não entrar no escopo de 2 semanas
-  desta PoC, registrar como Deferred Idea explícita.
+  `agent/judge.py` → `JudgePipeline`. Pendente de alinhamento com o time
+  (oportunidade natural: apresentação 2026-08-21, Bloco 7 — Achados técnicos).
+  Se ficar fora do escopo de 2 semanas desta PoC, mover para Deferred Ideas.
 - [x] **Checkpoint 1 (Dia 5):** atrasado no calendário original, mas
   tecnicamente concluído em 2026-08-17 — ingestão + RAG funcionando (todos
   os módulos de `rag_pipeline/` implementados, sem `NotImplementedError`).
 - [x] Checkpoint 2 (Dia 9): demo end-to-end via HTTP — **concluído** (5/5 casos, 2026-08-17)
 - [x] Observabilidade avançada — AD-011..AD-012, 2026-08-19 (Langfuse + 11 tipos de evento + Chainlit enrichment)
 - [x] Correções pós-ensaio — AD-013, 2026-08-19 (UI seletiva, RAG threshold 0.60, LLM retry, mock cleanup)
-- [ ] **PR: `feature/orchestrator-agentframework-native` → `main`** (próximo passo)
+- [x] **PR #7: `feature/orchestrator-agentframework-native` → `main`** — mergeada em 2026-08-20T15:02:06Z (commit `ed83c26`), CI 100% verde.
 - [ ] Demo final + relatório de achados técnicos (1-2 páginas) sobre o
   `agent_platform_oci` — ver `docs/PROPOSTA-POC.md`, seção 10
-- [ ] Migrar 3 módulos reinventados (ver L-003): `ChannelGateway.normalize()`, `GuardrailPipeline`, `JudgePipeline` — Deferred se fora do escopo de 2 semanas
+- [ ] Discutir L-003 com o time na apresentação (2026-08-21, Bloco 7): decidir se migrar os 3 módulos reinventados ou mover para Deferred Ideas do projeto real
