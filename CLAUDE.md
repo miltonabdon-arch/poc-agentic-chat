@@ -18,6 +18,8 @@ implementação final.** Ver [`docs/PROPOSTA-POC.md`](docs/PROPOSTA-POC.md) e
 cp .env.example .env          # preencher LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
                               # opcional: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 pip install -r requirements.txt
+pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@f9c66b4792ac9fd63d7397dbab3bcac310e4d780#subdirectory=libs/agent_framework"
+                              # agent_framework não está no PyPI — instalado direto do repo (ver STATE.md B-007)
 
 # Ingestão (popula Chroma local com data/catalogo/)
 python scripts/run_ingestao.py

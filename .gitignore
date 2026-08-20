@@ -18,3 +18,4 @@ gw.log
 mock_err.txt
 mock_out.txt
 .files/
+vendor/
