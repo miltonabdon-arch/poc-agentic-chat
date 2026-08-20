@@ -689,6 +689,33 @@ de não precisarem de LLM nem de credencial.
   integration, sem LLM configurado) → 76 passed, 11 skipped, 0 failed;
   `ruff check tests/test_integracao.py` → sem erros.
 
+**Correção incompleta na primeira tentativa — push direto p/ `main` quebrou
+o CI real (2026-08-20, mesmo dia):** a validação acima rodou dentro do
+container Docker local, onde `mock-services` estava de fato no ar —
+por isso só o caminho "mock respondeu" (`"cancelar"`) foi exercitado. O
+runner do GitHub Actions roda `pytest` puro, **sem** `docker compose up`
+— `mock-services` não existe nesse ambiente. `orchestrator/graph.py::
+_handoff()` tenta o `POST /agent/cancellation/interact`, recebe
+`httpx.ConnectError` (`All connection attempts failed`), cai no `except` e
+retorna o fallback `"Encaminhei sua solicitação para o time de
+cancellation. Em breve entraremos em contato."` — que não contém
+`"cancelar"`. Resultado: `git push origin main` (commit `7fbfe02`, após
+merge com a PR #8 que havia avançado a `main` remota enquanto a correção
+era feita) disparou o CI real (`32410912983`), que falhou em
+`test_intencao_cancelamento_roteia_para_handoff` com exatamente esse
+`AssertionError`. **Corrigido no mesmo commit da correção final**: a
+asserção agora aceita `"cancelar"` **OU** `"solicitação"`/`"encaminhei"` —
+cobre tanto o caminho feliz (mock respondeu) quanto o fallback de rede
+indisponível (ambiente do CI). Revalidado nos dois cenários dentro do
+container: com `mock-services` acessível (padrão) e com
+`MOCK_SERVICES_URL` apontando para um host inexistente (simula o CI) —
+ambos passam.
+**Lição:** ao corrigir uma asserção que depende de uma chamada de rede,
+testar também o caminho de falha de rede, não só o "caminho feliz" que o
+ambiente de validação (aqui, o container local com `mock-services` no ar)
+tornava acessível — o ambiente de CI real nem sempre replica as mesmas
+dependências de rede do ambiente de desenvolvimento local.
+
 **Impact:** antes desta correção, uma regressão futura no roteamento de
 cancelamento (ex.: `_after_routing` deixando de mapear `cancellation_agent`
 → `handoff_cancellation`) não seria pega pelo CI rápido, mesmo sendo um
