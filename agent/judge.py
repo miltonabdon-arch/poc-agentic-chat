@@ -5,25 +5,21 @@ sincrono). Nao substitui o Golden Standard Dataset do projeto real
 (Deferred Idea em STATE.md) - e apenas uma checagem ilustrativa com 7
 proxies offline:
 
-  1. empty_response         — resposta vazia ou em branco
-  2. groundedness           — resposta gerada sem source_document_id nem
-                              texto de "não encontrei" (possivel alucinacao)
-  3. not_found_consistency  — agente disse "nao encontrei" mas havia fonte
-  4. length_anomaly         — response muito curta, possivel erro silencioso
+  1. empty_response       — resposta vazia ou em branco
+  2. groundedness         — response sem source_document_id (possivel alucinacao)
+  3. not_found_consistency — agente disse "nao encontrei" mas havia fonte
+  4. length_anomaly       — response muito curta, possivel erro silencioso
   5. unwarranted_deflection — "consulte um atendente" quando havia fonte disponivel
-  6. topic_coherence        — baixo overlap de keywords entre pergunta e resposta
-  7. fabricated_data        — nomes proprios/valores monetarios sem fonte
+  6. topic_coherence      — baixo overlap de keywords entre pergunta e resposta
+  7. fabricated_data      — nomes proprios/valores monetarios sem fonte
 
 Contrato:
 - interactions: lista de dict com chaves:
     "interaction_id" (str)
-    "question"       (str, opcional) — pergunta original do cliente
+    "question"       (str) — pergunta original do cliente
     "response"       (str) — resposta gerada pelo agente
     "source_document_id" (str | None) — ID do chunk RAG usado, ou None
-    "expects_source" (bool, opcional, default True) — False para domínios
-      que não usam RAG (billing, eligibility, simulation, ...), onde a
-      ausência de source_document_id é esperada e não deve contar como
-      alucinação nem como dado fabricado.
+    "guardrail_blocked"  (bool, opcional) — True se input_guardrail bloqueou
 - Retorna lista de JudgeFinding, uma por interacao, com todos os problemas
   encontrados (lista vazia se passou em todos os checks).
 """
@@ -39,8 +35,7 @@ _NOT_FOUND_RE = re.compile(
     r"não encontrei"
     r"|não (tenho|possuo) (essa |esta |a )?informaç"
     r"|não (há|existe|tem) (essa |esta |a )?informaç"
-    r"|não foi possível encontrar"
-    r"|não localiz",
+    r"|não foi possível encontrar",
     re.IGNORECASE,
 )
 
@@ -94,8 +89,6 @@ def _check_empty_response(interaction: dict) -> str | None:
 
 
 def _check_groundedness(interaction: dict) -> str | None:
-    if not interaction.get("expects_source", True):
-        return None
     response = interaction.get("response") or ""
     has_source = bool(interaction.get("source_document_id"))
     if response and not has_source and not _NOT_FOUND_RE.search(response):
@@ -153,14 +146,7 @@ def _check_topic_coherence(interaction: dict) -> str | None:
 
 
 def _check_fabricated_data(interaction: dict) -> str | None:
-    """Detecta nomes próprios ou valores monetários na resposta sem fonte RAG.
-
-    Não se aplica quando expects_source=False (domínios CRM como billing/
-    eligibility/simulation legitimamente citam nomes e valores vindos da
-    API mock, sem chunk_id de RAG).
-    """
-    if not interaction.get("expects_source", True):
-        return None
+    """Detecta nomes próprios ou valores monetários na resposta sem fonte RAG."""
     response = interaction.get("response") or ""
     has_source = bool(interaction.get("source_document_id"))
     if has_source or not response:
@@ -196,8 +182,9 @@ _CHECKS = [
 def judge_batch(interactions: list[dict]) -> list[JudgeFinding]:
     """Avalia um lote de interações e retorna um JudgeFinding por interação.
 
-    Acumula TODOS os problemas encontrados (não para no primeiro). Use
-    finding.flagged para filtrar e finding.reasons para ver todos os motivos.
+    Diferente da versão anterior, acumula TODOS os problemas encontrados
+    (não para no primeiro). Use finding.flagged para filtrar e
+    finding.reasons para ver todos os motivos.
     """
     findings = []
     for interaction in interactions:

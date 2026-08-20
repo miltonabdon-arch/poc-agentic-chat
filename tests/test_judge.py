@@ -2,6 +2,7 @@
 
 from agent.judge import (
     _MIN_RESPONSE_CHARS,
+    _MIN_TOPIC_OVERLAP,
     JudgeFinding,
     judge_batch,
 )
@@ -13,7 +14,6 @@ def _interaction(
     source_document_id=None,
     interaction_id="i1",
     question=None,
-    expects_source=None,
 ):
     data = {
         "interaction_id": interaction_id,
@@ -22,8 +22,6 @@ def _interaction(
     }
     if question is not None:
         data["question"] = question
-    if expects_source is not None:
-        data["expects_source"] = expects_source
     return data
 
 
@@ -66,30 +64,6 @@ def test_groundedness_nao_aplica_a_response_nulo():
     assert result[0].flagged is True
     assert "alucinação" not in result[0].reason
     assert "vazia" in result[0].reason
-
-
-def test_groundedness_ok_rag_miss_genuino_com_expects_source():
-    """RAG miss genuíno (mensagem 'não encontrei') não deve ser alucinação
-    mesmo com expects_source=True — ver orchestrator/graph.py node_judge.
-    """
-    result = judge_batch([_interaction(
-        not_found_response(),
-        source_document_id=None,
-        expects_source=True,
-    )])
-    assert not any("alucinação" in r for r in result[0].reasons)
-
-
-def test_groundedness_nao_aplica_quando_expects_source_false():
-    """Domínios CRM (billing/eligibility/simulation) legitimamente não têm
-    source_document_id — expects_source=False deve suprimir o check.
-    """
-    result = judge_batch([_interaction(
-        "Sua fatura deste mês é de R$ 79,90.",
-        source_document_id=None,
-        expects_source=False,
-    )])
-    assert not any("alucinação" in r for r in result[0].reasons)
 
 
 # --- check_not_found_consistency ---
@@ -222,18 +196,6 @@ def test_fabricated_data_ok_com_fonte():
     result = judge_batch([_interaction(
         response="O Plano Controle 100GB custa R$ 99,90 por mês.",
         source_document_id="controle-100gb",
-    )])
-    assert not any("fabricado" in r for r in result[0].reasons)
-
-
-def test_fabricated_data_nao_aplica_quando_expects_source_false():
-    """Domínio CRM (billing) cita nome/valor reais da API mock sem chunk_id —
-    não é dado fabricado, é resposta CRM legítima.
-    """
-    result = judge_batch([_interaction(
-        response="Olá, João Silva! Sua fatura de R$ 79,90 venceu ontem.",
-        source_document_id=None,
-        expects_source=False,
     )])
     assert not any("fabricado" in r for r in result[0].reasons)
 
