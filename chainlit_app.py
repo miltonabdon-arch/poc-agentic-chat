@@ -19,12 +19,10 @@ import httpx
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8000")
 
 _AGENT_NODES = {
-    "catalog_agent",
-    "billing",
-    "handoff_cancellation",
-    "handoff_deals",
-    "eligibility",
-    "simulation",
+    "informacao",
+    "cancelamento_retencao",
+    "ativacao",
+    "mudanca_plano",
     "supervisor",
 }
 
@@ -35,7 +33,7 @@ def _fmt(event: dict) -> str:
     """JSON indentado do payload do evento, removendo campos internos de roteamento."""
     skip = {"type", "session_id", "canal", "node", "guardrail"}
     data = {k: v for k, v in event.items() if k not in skip and v is not None}
-    if event.get("node") == "catalog_agent" and "chunk_id" not in data:
+    if event.get("node") == "informacao" and "chunk_id" not in data:
         data["found"] = False
     if not data:
         return "✓"

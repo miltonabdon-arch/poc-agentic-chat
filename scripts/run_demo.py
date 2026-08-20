@@ -34,7 +34,7 @@ async def main():
     for i, (categoria, pergunta) in enumerate(PERGUNTAS_DEMO, 1):
         print(f"\n[{i}/5] [{categoria}]")
         print(f"  Usuário : {pergunta}")
-        msg = normalize(pergunta, session_id)
+        msg = await normalize(pergunta, session_id)
         resposta = await run_interaction(msg)
         print(f"  Agente  : {resposta}")
 
