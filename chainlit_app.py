@@ -45,34 +45,38 @@ _TYPE_ICON = {
     "STATE": "📊",
 }
 
+_AGENT_NODES = {
+    "informacao",
+    "cancelamento_retencao",
+    "ativacao",
+    "mudanca_plano",
+    "supervisor",
+}
+
 # SUG-01: mapeamento componente FLOW → fase do TaskList
 _FLOW_TO_TASK = {
-    "node.input_guardrails": "guardrails_in",
-    "node.routing_decision": "roteamento",
-    "node.catalog_agent": "processamento",
-    "node.billing": "processamento",
-    "node.handoff_cancellation": "processamento",
-    "node.handoff_deals": "processamento",
-    "node.eligibility": "processamento",
-    "node.simulation": "processamento",
-    "node.supervisor": "processamento",
-    "node.output_guardrails": "guardrails_out",
-    "node.judge": "avaliacao",
+    "node.input_guardrails":      "guardrails_in",
+    "node.routing_decision":      "roteamento",
+    "node.informacao":            "processamento",
+    "node.cancelamento_retencao": "processamento",
+    "node.ativacao":              "processamento",
+    "node.mudanca_plano":         "processamento",
+    "node.supervisor":            "processamento",
+    "node.output_guardrails":     "guardrails_out",
+    "node.judge":                 "avaliacao",
 }
 
 # SUG-04: mapeamento nó do STATE → fase do TaskList
 _STATE_TO_TASK = {
-    "input_guardrails": "guardrails_in",
-    "routing_decision": "roteamento",
-    "catalog_agent": "processamento",
-    "billing": "processamento",
-    "handoff_cancellation": "processamento",
-    "handoff_deals": "processamento",
-    "eligibility": "processamento",
-    "simulation": "processamento",
-    "supervisor": "processamento",
-    "output_guardrails": "guardrails_out",
-    "judge": "avaliacao",
+    "input_guardrails":      "guardrails_in",
+    "routing_decision":      "roteamento",
+    "informacao":            "processamento",
+    "cancelamento_retencao": "processamento",
+    "ativacao":              "processamento",
+    "mudanca_plano":         "processamento",
+    "supervisor":            "processamento",
+    "output_guardrails":     "guardrails_out",
+    "judge":                 "avaliacao",
 }
 
 
@@ -91,7 +95,7 @@ def _fmt(event: dict) -> str:
         "initial_state", "final_state", "delta",
     }
     data = {k: v for k, v in event.items() if k not in skip and v is not None}
-    if event.get("node") == "catalog_agent" and "chunk_id" not in data:
+    if event.get("node") == "informacao" and "chunk_id" not in data:
         data["found"] = False
     if not data:
         return "✓"

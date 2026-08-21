@@ -3,109 +3,151 @@ router:
   enable_llm_router: false
 
 intents:
-  - name: catalog_query
-    description: Perguntas sobre planos, pacotes e ofertas do catálogo TIM
-    agent: catalog_agent
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JORNADA 1 — INFORMAÇÃO
+  # Cobre: regras, benefícios, franquias e cobertura do catálogo TIM X
+  #        + Segunda via e dúvidas de fatura (subcaso cobrança, detectado
+  #          dentro do nó pelo campo palavras_cobranca abaixo)
+  # Escopo v1.2 § 3.1: acionado por classificação positiva, nunca como fallback
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: informacao
+    description: >
+      Perguntas sobre planos, benefícios, regras, franquias e cobertura (catálogo TIM X).
+      Inclui subcaso cobrança: dúvidas de fatura e solicitação de segunda via.
+    agent: informacao_agent
     keywords:
-      - plano
-      - pacote
-      - oferta
-      - internet
-      - ligação
+      # — catálogo / regras / benefícios
+      - o que inclui
+      - quais benefícios
+      - como funciona
+      - regras de
+      - franquia
+      - cobertura
       - benefício
-      - contratar
+      - internet
       - gigas
       - gb
-      - franquia
       - dados
-      - inclui
+      - ligação
+      - roaming
+      - 5g
+      - 4g
       - turbo
       - controle
       - família
       - prime
       - pré-pago
-      - fidelidade
-      - multa
-      - cobertura
-      - 5g
-      - 4g
-    priority: 2
-    enabled: true
-    domain: catalog
-
-  - name: billing_query
-    description: Perguntas sobre fatura, cobrança e segunda via
-    agent: billing_agent
-    keywords:
+      # — subcaso cobrança (fatura / segunda via)
       - fatura
       - boleto
       - pagamento
       - vencimento
       - segunda via
-      - débito
+      - débito automático
       - cobrança
-      - conta
-      - valor
     priority: 2
     enabled: true
-    domain: billing
+    domain: informacao
+    # Palavras que identificam o subcaso cobrança DENTRO da jornada de Informação.
+    # Lidas pelo nó informacao_agent no grafo para chamar _run_subcaso_cobranca().
+    palavras_cobranca:
+      - fatura
+      - boleto
+      - pagamento
+      - vencimento
+      - segunda via
+      - débito automático
+      - cobrança
 
-  - name: cancellation_request
-    description: Intenção de cancelar linha ou serviço
-    agent: cancellation_agent
+  # ─────────────────────────────────────────────────────────────────────────
+  # JORNADA 2 — CANCELAMENTO
+  # Escopo v1.2 § 3.4: exige tratativa de retenção (CAN-01..CAN-05) antes
+  #                    do cancelamento definitivo ou transbordo para ATH.
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: cancelamento
+    description: >
+      Intenção de cancelar linha ou serviço.
+      Aciona fluxo obrigatório de retenção (CAN-01..CAN-05) antes de qualquer
+      cancelamento definitivo ou transbordo para Atendimento Humano (ATH).
+    agent: cancelamento_agent
     keywords:
       - cancelar
       - desativar
       - encerrar
       - rescisão
-      - sair
+      - quero sair
+      - não quero mais
+      - quero cancelar
+      - encerra minha linha
     priority: 1
     enabled: true
-    domain: cancellation
+    domain: cancelamento
 
-  - name: deals_request
-    description: Solicitação de negociação, desconto ou promoção personalizada
-    agent: deals_agent
+  # ─────────────────────────────────────────────────────────────────────────
+  # JORNADA 3 — ATIVAÇÃO (Pré-pago → Controle)
+  # Escopo v1.2 § 3.2 & 10: aciona Crivo/Score + Catálogo Pré.
+  #                          Sem handoff para agente externo.
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: ativacao
+    description: >
+      Solicitação de upgrade ou ativação de plano Pré-pago para Controle.
+      Aciona verificação de elegibilidade via Crivo/Score e Catálogo de
+      Ofertas Pré diretamente, sem handoff para agente externo.
+    agent: ativacao_agent
     keywords:
-      - desconto
-      - negociar
+      - upgrade
+      - ativar controle
+      - pré-pago para controle
+      - quero controle
+      - migrar para controle
+      - migrar para pós
+      - mudar para pós-pago
       - promoção
       - oferta especial
-      - upgrade
-      - quais planos
-      - planos disponíveis
-    priority: 4
+      - quero uma oferta
+    priority: 3
     enabled: true
-    domain: deals
+    domain: ativacao
 
-  - name: eligibility_query
-    description: Verificação de elegibilidade para troca de plano
-    agent: eligibility_agent
+  # ─────────────────────────────────────────────────────────────────────────
+  # JORNADA 4 — MUDANÇA DE PLANO (Up/Down)
+  # Escopo v1.2 § 3.3: elegibilidade e simulação são ETAPAS do mesmo fluxo,
+  #                    não intents separados.
+  # Subfluxo Contas: quando handoff_origem == "agente_contas", pula
+  #                  elegibilidade e aplica o plano diretamente.
+  # ─────────────────────────────────────────────────────────────────────────
+  - name: mudanca_plano
+    description: >
+      Verificação de elegibilidade + simulação + aplicação de troca de plano (Up/Down).
+      Elegibilidade e simulação são etapas sequenciais do mesmo fluxo.
+      Para upgrade: consulta Catálogo NBA. Para downgrade: consulta Catálogo de Retenção.
+    agent: mudanca_plano_agent
     keywords:
       - posso trocar
       - posso mudar
       - trocar de plano
       - mudar de plano
+      - quero trocar
+      - quero mudar de plano
       - elegibilidade
-    priority: 5
-    enabled: true
-    domain: eligibility
-
-  - name: simulation_request
-    description: Simulação de troca de plano com cálculo de valores
-    agent: simulation_agent
-    keywords:
       - simular
       - simulação
       - vale a pena trocar
       - quanto vou pagar se
-      - simula
-    priority: 6
+      - simula pra mim
+      - quero um plano maior
+      - quero um plano menor
+    priority: 4
     enabled: true
-    domain: simulation
+    domain: mudanca_plano
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # FALLBACK — Supervisor
+  # Aciona quando nenhuma jornada foi identificada com confiança.
+  # ─────────────────────────────────────────────────────────────────────────
   - name: fallback
-    description: Intenção não identificada — encaminha para supervisor
+    description: Intenção não identificada — encaminha para supervisor.
     agent: supervisor_agent
     keywords: []
     priority: 99

@@ -79,7 +79,7 @@ def dada_mensagem(texto):
     """Cria um ChannelMessage — contrato de Kirllen (gateway/channel_gateway.py)."""
     from gateway.channel_gateway import normalize
 
-    return normalize(texto, conversation_id=f"bdd-{uuid.uuid4().hex[:8]}")
+    return asyncio.run(normalize(texto, conversation_id=f"bdd-{uuid.uuid4().hex[:8]}"))
 
 
 @given(parsers.parse('um texto de entrada "{texto}"'), target_fixture="texto_entrada")

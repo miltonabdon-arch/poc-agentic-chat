@@ -1,19 +1,30 @@
-"""Channel Gateway (mock SSE) — normaliza a requisição para ChannelMessage
-do agent_framework (contrato nativo), simulando o canal SSE/TIA real.
+"""Channel Gateway — normaliza a requisição para ChannelMessage
+usando ChannelGateway.normalize() nativo do agent_framework.
+
+Canais suportados (embedded mode):
+  "web"      → WebAdapter    (padrão — REST/Chainlit)
+  "voice"    → VoiceAdapter  (URA/TIA — endpoint /agent/sse)
+  "whatsapp" → WhatsAppAdapter
 """
 
 import uuid
 from datetime import datetime, timezone
 
 from agent_framework.channels.base import ChannelMessage
+from agent_framework.channels.gateway import ChannelGateway
+
+_gateway = ChannelGateway(input_mode="embedded")
 
 
-def normalize(raw_message: str, conversation_id: str | None = None) -> ChannelMessage:
-    return ChannelMessage(
-        channel="mock_sse",
-        channel_id="tim-poc",
-        session_id=conversation_id or str(uuid.uuid4()),
-        user_id="anonymous",
-        text=raw_message,
-        context={"timestamp": datetime.now(timezone.utc).isoformat()},
-    )
+async def normalize(
+    raw_message: str,
+    conversation_id: str | None = None,
+    canal: str = "web",
+) -> ChannelMessage:
+    payload = {
+        "message": raw_message,
+        "session_id": conversation_id or str(uuid.uuid4()),
+        "channel_id": "tim-poc",
+        "context": {"timestamp": datetime.now(timezone.utc).isoformat()},
+    }
+    return await _gateway.normalize(canal, payload)
