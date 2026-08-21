@@ -3,10 +3,11 @@
 from pathlib import Path
 
 from rag_pipeline.chunker import chunk_by_markdown_header
+from rag_pipeline.revectorizer import update_chunk
 from rag_pipeline.extractor import extract_from_file
 from rag_pipeline.metadata_enricher import enrich
 from rag_pipeline.query_api import query
-from rag_pipeline.vectorizer import get_client, vectorize_and_store
+from rag_pipeline.vectorizer import get_client, get_collection, vectorize_and_store
 
 CATALOGO_DIR = Path(__file__).parent.parent / "data" / "catalogo"
 
@@ -84,7 +85,6 @@ def test_consulta_discrimina_planos_com_conteudo_parecido(tmp_path):
     assert result_prime.found is True
     assert result_prime.source_document_id == "familia-prime"
 
-
 def test_consulta_fora_do_catalogo_nao_inventa_resposta(tmp_path):
     """Regressão: uma pergunta sobre um plano inexistente não deve 'casar'
     por acidente com o chunk mais próximo (ver calibração do threshold em
@@ -98,3 +98,41 @@ def test_consulta_fora_do_catalogo_nao_inventa_resposta(tmp_path):
 
     result = query(client, "Qual o preço do Plano Estratosférico 500GB?", collection_name="test_collection")
     assert result.found is False
+
+def test_update_chunk_atualiza_texto_e_incrementa_versao(tmp_path):
+    client = get_client(str(tmp_path / "chroma_test"))
+    document = extract_from_file(CATALOGO_DIR / "turbo-40gb.md")
+    for raw_chunk in chunk_by_markdown_header(document):
+        chunk = enrich(document, raw_chunk)
+        vectorize_and_store(client, chunk, "test_collection")
+
+    chunk_id = "turbo-40gb#Franquia_0"
+    new_text = "50GB de internet 5G atualizado."
+
+    update_chunk(client, chunk_id, new_text, edited_by="teste", reason="teste", collection_name="test_collection")
+
+    collection = get_collection(client, "test_collection")
+    result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
+
+    assert result["documents"][0].endswith(new_text)
+    assert result["metadatas"][0]["version"] == 2
+    assert "updated_at" in result["metadatas"][0]
+
+
+def test_update_chunk_preserva_metadados_existentes(tmp_path):
+    client = get_client(str(tmp_path / "chroma_test"))
+    document = extract_from_file(CATALOGO_DIR / "turbo-40gb.md")
+    for raw_chunk in chunk_by_markdown_header(document):
+        chunk = enrich(document, raw_chunk)
+        vectorize_and_store(client, chunk, "test_collection")
+
+    chunk_id = "turbo-40gb#Franquia_0"
+    update_chunk(client, chunk_id, "novo texto qualquer", edited_by="teste", reason="teste", collection_name="test_collection")
+
+    collection = get_collection(client, "test_collection")
+    meta = collection.get(ids=[chunk_id], include=["metadatas"])["metadatas"][0]
+
+    assert meta["source_document_id"] == "turbo-40gb"
+    assert meta["plano_id"] == "turbo-40gb"
+    assert meta["section"] == "Franquia"
+    assert meta["status"] == "active"

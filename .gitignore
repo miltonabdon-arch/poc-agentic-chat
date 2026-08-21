@@ -16,3 +16,4 @@ vendor/
 .chainlit/
 gw_err.log
 gw.log
+chunk_audit.db

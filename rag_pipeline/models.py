@@ -21,6 +21,7 @@ class Chunk:
     section: str
     nome_plano: str = ""
     status: str = "active"
+    version: int = 1
 
 
 @dataclass
