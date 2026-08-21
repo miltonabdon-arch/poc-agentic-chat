@@ -98,6 +98,16 @@ def _sliding_window(
         sent = sentences[i]
         sent_tokens = token_counts[i]
 
+        if not window and sent_tokens > token_limit:
+            # Sentença isolada maior que token_limit: nunca caberia em nenhuma
+            # janela, e o branch de quebra semântica abaixo só fecha quando
+            # window não está vazia — sem este caso, i nunca avança (loop infinito).
+            chunks.append(_make_chunk(overlap, [sent], section, window_index))
+            window_index += 1
+            overlap = _compute_overlap([sent], overlap_tokens, [sent_tokens])
+            i += 1
+            continue
+
         if window_tokens + sent_tokens <= token_limit:
             window.append(sent)
             window_tc.append(sent_tokens)

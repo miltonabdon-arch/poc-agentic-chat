@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from rag_pipeline.chunker import chunk_by_markdown_header
+from rag_pipeline.chunker import _sliding_window, chunk_by_markdown_header
 from rag_pipeline.revectorizer import update_chunk
 from rag_pipeline.extractor import extract_from_file
 from rag_pipeline.metadata_enricher import enrich
@@ -136,3 +136,20 @@ def test_update_chunk_preserva_metadados_existentes(tmp_path):
     assert meta["plano_id"] == "turbo-40gb"
     assert meta["section"] == "Franquia"
     assert meta["status"] == "active"
+
+
+def test_sliding_window_sentenca_isolada_maior_que_token_limit_nao_trava():
+    """Regressão: uma sentença sozinha maior que token_limit (ex.: cláusula
+    jurídica longa sem pontuação interna) nunca cabe na janela vazia; sem
+    tratamento explícito, o branch de quebra semântica só fecha a janela
+    quando ela não está vazia e nunca avança o índice, travando em loop
+    infinito.
+    """
+    giant_sentence = "palavra " * 250 + "."
+    text = f"{giant_sentence} Frase normal curta."
+
+    chunks = _sliding_window(text, section="Multa de cancelamento")
+
+    assert len(chunks) >= 2
+    assert all(c["section"] == "Multa de cancelamento" for c in chunks)
+    assert any(giant_sentence.strip() in c["text"] for c in chunks)
