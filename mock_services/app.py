@@ -1,9 +1,7 @@
-from agents.plans import router as plans_router
 import logging
 import time
 
-from agents.cancellation import router as cancellation_router
-from agents.deals import router as deals_router
+from agents.plans import router as plans_router
 from fastapi import FastAPI, Request
 
 logger = logging.getLogger(__name__)
