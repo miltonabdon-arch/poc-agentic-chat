@@ -22,6 +22,17 @@ como "validação pendente de credencial" — `.env` local sem
 parte: `test_intencao_cancelamento_roteia_para_handoff` falhava sempre e
 estava mascarado como "requer LLM" — corrigido (ver B-011).
 
+**Atualização 2026-08-21 (B-012):** PR #9 (`feature/evolucao-backend`, Kirllen)
+mesclada na `main` (commit `616c936`), com CI verde. Refactor substitui as
+jornadas antigas (`catalog_agent`/`billing`/`handoff_cancellation`/
+`handoff_deals`/`eligibility`/`simulation`) pelas 4 jornadas do Escopo v1.2 §3
+(`informacao`/`cancelamento_retencao`/`ativacao`/`mudanca_plano`) + supervisor.
+Validado ponta a ponta pós-merge (grafo, routing_config, endpoints mock e
+suíte completa — 76 passed) e testado manualmente via `/agent/interact`:
+cancelamento, mudança de plano e billing funcionam corretamente. Achado: a
+jornada de **ativação** está com bug de roteamento por sobreposição de
+keyword — ver B-012.
+
 **⚠️ AD-008 revertido (2026-08-10) — ver AD-009 abaixo:** o commit AD-008
 (integração real do pacote `agent_framework`) foi revertido porque um dev do
 time (`gbezerra-ciandt`) já havia ramificado e implementado 3 das 4 fatias
@@ -721,6 +732,80 @@ cancelamento (ex.: `_after_routing` deixando de mapear `cancellation_agent`
 → `handoff_cancellation`) não seria pega pelo CI rápido, mesmo sendo um
 caminho sem dependência de LLM — o teste que deveria detectar isso estava
 mascarado como "requer credencial" quando na verdade não requeria.
+
+---
+
+### B-012: Jornada de `ativacao` inacessível por texto livre — keyword `"controle"` de `informacao` (priority 2) sempre vence antes de chegar às keywords específicas de `ativacao` (priority 3) (2026-08-21)
+
+**Contexto:** PR #9 (`feature/evolucao-backend`, autor Kirllen) foi mesclada na
+`main` (commit `616c936`) com CI 100% verde (Lint, Testes, Build Docker).
+Verificação pós-merge (não só CI) confirmou coerência estrutural completa:
+todos os 5 `agent:` do novo `orchestrator/routing_config.yaml`
+(`informacao_agent`, `cancelamento_agent`, `ativacao_agent`,
+`mudanca_plano_agent`, `supervisor_agent`) têm nó correspondente em
+`build_graph()`/`_after_routing()`; `node_judge` foi corretamente atualizado
+(`expects_source` agora aponta para `informacao_agent`, não mais para o
+extinto `catalog_agent`); todos os endpoints mock consumidos pelo
+`orchestrator/graph.py` (`/crm/cliente/{cpf}`, `/crm/cliente/{cpf}/elegibilidade`,
+`/catalogo/pre`, `/catalogo/retencao/{cpf}`, `/catalogo/reversao/{cpf}`,
+`/crivo/score/{cpf}`, `/ath/transbordo`, `/planos/simular-troca`) existem em
+`mock_services/` (a maioria movida para `mock_services/agents/plans.py`, com
+`mock_services/agents/cancellation.py`/`deals.py` corretamente removidos do
+`app.py` — resíduo do commit anterior `55baec8` foi limpo em `5c96a54`).
+Suíte completa revalidada dentro do container real reconstruído com o código
+mesclado: **76 passed, 0 failed**.
+
+**Bug encontrado ao testar manualmente cada jornada via `POST /agent/interact`**
+(contrato do endpoint também mudou neste PR: agora é `{"message": str,
+"conversation_id": str|None}`, não mais `{"channel", "channel_id", "text", ...}`):
+a intent `ativacao` (upgrade Pré-pago → Controle, Escopo v1.2 §3.2) nunca é
+escolhida pelo `EnterpriseRouter` para nenhuma das frases-exemplo que o
+próprio `routing_config.yaml` documenta como keywords dessa intent
+(`"ativar controle"`, `"quero controle"`, `"migrar para controle"`,
+`"pré-pago para controle"`) — todas caem em `informacao_agent` em vez de
+`ativacao_agent`. Confirmado via chamadas reais:
+```
+"Quero ativar controle"        -> "Não consegui acessar o catálogo..." (informacao/RAG, sem LLM configurado)
+"Quero controle"                -> idem
+"ativar controle"                -> idem
+"Quero migrar para controle"     -> idem
+"Quero fazer upgrade do meu plano" -> resposta correta de ativacao_agent (Crivo/Score + Catálogo Pré)
+"promoção" / "quero uma oferta"    -> idem (correto)
+```
+**Causa raiz:** `agent_framework/routing/enterprise_router.py::_route_by_keyword()`
+ordena candidatos por `(priority, -len(keyword))` — menor `priority` numérica
+vence, desempate por keyword mais longa. `informacao` tem `priority: 2` e
+inclui a keyword genérica `"controle"` (herdada da antiga intent
+`catalog_query`, que cobria catálogo de planos em geral). `ativacao` tem
+`priority: 3` e todas as suas keywords mais específicas de intenção
+(`"ativar controle"`, `"quero controle"`, `"migrar para controle"`,
+`"pré-pago para controle"`) contêm essa mesma substring `"controle"` — como
+`informacao` já dá match nelas com priority mais forte, `ativacao` nunca é
+alcançada para essas frases. Isso é uma regressão de configuração introduzida
+no próprio PR #9 (commit `a154ca3`, que criou a intent `ativacao` nova) — a
+versão anterior (`catalog_query` única, cobrindo tudo) não tinha essa
+sobreposição porque não existia uma segunda intent concorrente pela mesma
+palavra.
+
+**Por que passou pelo CI:** não existe teste automatizado cobrindo o
+roteamento por keyword da jornada de ativação — o único teste "sem LLM" que
+valida `EnterpriseRouter` por texto é
+`test_intencao_cancelamento_roteia_para_handoff` (ver B-011), específico da
+jornada de cancelamento.
+
+**Status:** não corrigido — apenas documentado. Fix sugerido (não aplicado):
+mover `"controle"` sozinho para fora das keywords de `informacao` (manter só
+combinações mais específicas como `"controle basic"`, `"plano controle"`,
+regras de/franquia/benefício) e/ou reduzir a `priority` de `ativacao` para
+igual ou menor que `informacao`, com desempate por keyword mais longa
+resolvendo a favor de `ativacao` (já é o comportamento de desempate do
+router, mas só entra em jogo se as prioridades empatarem).
+
+**Impact:** a jornada de Ativação (Escopo v1.2 §3.2, Crivo/Score + Catálogo
+Pré) é uma das 5 jornadas centrais do escopo — hoje só é alcançável por
+frases que evitem a palavra "controle" (ex.: "fazer upgrade", "promoção",
+"quero uma oferta"), o que não reflete a linguagem natural mais provável de
+um cliente real pedindo upgrade.
 
 ---
 
