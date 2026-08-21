@@ -1,7 +1,7 @@
 """Guardrail de output — wrapper sobre GuardrailPipeline do agent_framework.
 
-Ordem: ContextLeakRail (block) → CompetitorMaskRail (sanitize) → MarkdownCleanRail (sanitize).
-OutputPiiMaskRail disponível mas desativado por padrão (PII na saída é raro).
+Ordem: ContextLeakRail (block) → DowngradeProposalRail (block, se intent==informacao)
+       → CompetitorMaskRail (sanitize) → MarkdownCleanRail (sanitize).
 Adapta RailDecision → GuardrailResult para o orquestrador (graph.py) não mudar.
 """
 
@@ -10,19 +10,15 @@ from agent_framework.guardrails.rail import RailAction
 from agent_framework.guardrails.rails import (
     CompetitorMaskRail,
     ContextLeakRail,
+    DowngradeProposalRail,
     MarkdownCleanRail,
 )
 
 from agent.models import Action, GuardrailResult, Violation
 
-_pipeline = GuardrailPipeline(rails=[
-    ContextLeakRail(),
-    CompetitorMaskRail(),
-    MarkdownCleanRail(),
-])
-
 _VIOLATION_MAP = {
     "context_leak": Violation.CONTEXT_LEAK,
+    "downgrade_proposal": Violation.DOWNGRADE_PROPOSAL,
     "competitor_mention": Violation.COMPETITOR_MENTION,
     "format_violation": Violation.FORMAT_VIOLATION,
 }
@@ -33,10 +29,15 @@ _ACTION_MAP = {
 }
 
 
-def check_output(text: str) -> GuardrailResult:
-    decisions = _pipeline.run(text)
+def check_output(text: str, intent: str | None = None) -> GuardrailResult:
+    pipeline = GuardrailPipeline(rails=[
+        ContextLeakRail(),
+        DowngradeProposalRail(intent=intent),
+        CompetitorMaskRail(),
+        MarkdownCleanRail(),
+    ])
+    decisions = pipeline.run(text)
 
-    # Coleta a violação mais grave (block > sanitize > allow)
     blocking = next((d for d in decisions if d.action == RailAction.block), None)
     if blocking:
         violation = _VIOLATION_MAP.get(
@@ -54,7 +55,6 @@ def check_output(text: str) -> GuardrailResult:
         violation = _VIOLATION_MAP.get(
             sanitized.metadata.get("violation", ""), Violation.NONE
         )
-        # Texto final é o último resultado da cadeia de sanitizações
         final_text = decisions[-1].text
         return GuardrailResult(
             guardrail_type="output",

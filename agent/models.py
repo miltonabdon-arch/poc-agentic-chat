@@ -8,8 +8,10 @@ class Violation(str, Enum):
     PII = "pii"
     COMPETITOR_MENTION = "competitor_mention"
     OUT_OF_DOMAIN = "out_of_domain"
-    CONTEXT_LEAK = "context_leak"      # seção interna do prompt vazou na resposta
-    FORMAT_VIOLATION = "format_violation"  # markdown residual em canal de voz
+    CONTEXT_LEAK = "context_leak"
+    FORMAT_VIOLATION = "format_violation"
+    TOXICITY = "toxicity"
+    DOWNGRADE_PROPOSAL = "downgrade_proposal"
     NONE = "none"
 
 

@@ -1,18 +1,19 @@
 """Guardrail de input — wrapper sobre GuardrailPipeline do agent_framework.
 
-Ordem: OutOfScopeRail (block) → PiiMaskRail (sanitize).
+Ordem: ToxicityRail (block) → OutOfScopeRail (block) → PiiMaskRail (sanitize).
 Adapta RailDecision → GuardrailResult para o orquestrador (graph.py) não mudar.
 """
 
 from agent_framework.guardrails import GuardrailPipeline
 from agent_framework.guardrails.rail import RailAction
-from agent_framework.guardrails.rails import OutOfScopeRail, PiiMaskRail
+from agent_framework.guardrails.rails import OutOfScopeRail, PiiMaskRail, ToxicityRail
 
 from agent.models import Action, GuardrailResult, Violation
 
-_pipeline = GuardrailPipeline(rails=[OutOfScopeRail(), PiiMaskRail()])
+_pipeline = GuardrailPipeline(rails=[ToxicityRail(), OutOfScopeRail(), PiiMaskRail()])
 
 _VIOLATION_MAP = {
+    "toxicity": Violation.TOXICITY,
     "out_of_domain": Violation.OUT_OF_DOMAIN,
     "pii": Violation.PII,
 }
@@ -26,7 +27,6 @@ _ACTION_MAP = {
 def check_input(text: str) -> GuardrailResult:
     decisions = _pipeline.run(text)
 
-    # Encontra a primeira decisão que não é allow
     for d in decisions:
         if d.action != RailAction.allow:
             violation = _VIOLATION_MAP.get(
@@ -39,7 +39,6 @@ def check_input(text: str) -> GuardrailResult:
                 text=d.text,
             )
 
-    # Texto final após todas as sanitizações (pode ter PII mascarado)
     final_text = decisions[-1].text if decisions else text
     return GuardrailResult(
         guardrail_type="input",
