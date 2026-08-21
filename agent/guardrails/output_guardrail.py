@@ -1,17 +1,19 @@
 """Guardrail de output - equivalente simplificado de SPEC-005 (Guardrails).
 
 Filtra a resposta gerada pelo agente antes de entregar ao cliente.
-Três verificações, em ordem de severidade:
+Quatro verificações, em ordem de severidade:
 
-  1. CONTEXT_LEAK   — seções internas do prompt vazaram na resposta (BLOCK)
-  2. COMPETITOR_MENTION — nome de concorrente citado diretamente (MASK inline)
-  3. FORMAT_VIOLATION   — markdown residual em canal de voz (MASK/limpeza)
+  1. CONTEXT_LEAK       — seções internas do prompt vazaram na resposta (BLOCK)
+  2. DOWNGRADE_PROPOSAL — proposta de plano menor detectada na jornada de Informação (BLOCK)
+  3. COMPETITOR_MENTION — nome de concorrente citado diretamente (MASK inline)
+  4. FORMAT_VIOLATION   — markdown residual em canal de voz (MASK/limpeza)
 
 Contrato (ver GuardrailResult em agent/models.py):
-- CONTEXT_LEAK  → Action.BLOCK  — resposta inteira substituída por mensagem neutra
-- COMPETITOR    → Action.MASK   — nome substituído inline por "outra operadora"
-- FORMAT        → Action.MASK   — marcadores markdown removidos
-- Nenhuma       → Action.ALLOW  — texto original passado sem alteração
+- CONTEXT_LEAK       → Action.BLOCK  — resposta substituída por mensagem neutra
+- DOWNGRADE_PROPOSAL → Action.BLOCK  — resposta substituída quando intent=="informacao"
+- COMPETITOR         → Action.MASK   — nome substituído inline por "outra operadora"
+- FORMAT             → Action.MASK   — marcadores markdown removidos
+- Nenhuma            → Action.ALLOW  — texto original passado sem alteração
 """
 
 import re
@@ -53,13 +55,27 @@ def _clean_markdown(text: str) -> str:
     text = re.sub(r"`{1,3}([^`]+)`{1,3}", r"\1", text)
     return text.strip()
 
+# Padrões de proposta de downgrade — bloqueados quando a jornada é "informacao"
+# (o catálogo RAG deve informar, não sugerir troca para plano inferior).
+_DOWNGRADE_RE = re.compile(
+    r"(plano\s+mais\s+barato|plano\s+menor|reduzir\s+(seu\s+)?plano|"
+    r"plano\s+inferior|plano\s+econ[oô]mico|"
+    r"trocar\s+para\s+um\s+plano\s+mais\s+barato|downgrade)",
+    re.IGNORECASE,
+)
+
 _BLOCK_MSG = (
     "Essa informação não está disponível. "
     "Para saber mais sobre os planos da TIM, acesse o site oficial ou fale com um atendente."
 )
 
+_DOWNGRADE_BLOCK_MSG = (
+    "Posso ajudar com informações sobre planos e benefícios da TIM. "
+    "Para simular mudanças de plano, me informe qual plano você tem interesse."
+)
 
-def check_output(text: str) -> GuardrailResult:
+
+def check_output(text: str, intent: str | None = None) -> GuardrailResult:
     # 1. Vazamento de contexto interno — mais grave, bloqueia tudo
     for pattern in _CONTEXT_LEAK_RES:
         if pattern.search(text):
@@ -70,7 +86,17 @@ def check_output(text: str) -> GuardrailResult:
                 text=_BLOCK_MSG,
             )
 
-    # 2. Citação de concorrente — substitui inline (preserva o restante da resposta)
+    # 2. Proposta de downgrade na jornada de Informação — a jornada de catálogo
+    # deve informar, não redirecionar o cliente para planos mais baratos.
+    if intent == "informacao" and _DOWNGRADE_RE.search(text):
+        return GuardrailResult(
+            guardrail_type="output",
+            violation=Violation.DOWNGRADE_PROPOSAL,
+            action_taken=Action.BLOCK,
+            text=_DOWNGRADE_BLOCK_MSG,
+        )
+
+    # 3. Citação de concorrente — substitui inline (preserva o restante da resposta)
     masked = text
     for pattern in _COMPETITOR_RES:
         masked = pattern.sub(_COMPETITOR_SUBSTITUTE, masked)
@@ -82,7 +108,7 @@ def check_output(text: str) -> GuardrailResult:
             text=masked,
         )
 
-    # 3. Markdown residual — limpa preservando conteúdo para voz
+    # 4. Markdown residual — limpa preservando conteúdo para voz
     cleaned = _clean_markdown(text)
     if cleaned != text:
         return GuardrailResult(

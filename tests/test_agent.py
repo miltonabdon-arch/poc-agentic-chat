@@ -2,6 +2,7 @@
 
 from agent.guardrails.input_guardrail import check_input
 from agent.guardrails.output_guardrail import check_output
+from agent.judge import judge_batch
 from agent.models import Action, Violation
 from agent.prompt import build_prompt, not_found_response
 from rag_pipeline.models import QueryResult
@@ -86,3 +87,88 @@ def test_prompt_sem_evidencia_retorna_none():
     prompt = build_prompt("Pergunta qualquer", query_result)
     assert prompt is None
     assert not_found_response() != ""
+
+
+def test_build_crm_prompt_inclui_intent_e_dados():
+    from agent.prompt import build_crm_prompt
+    dados = {"nome": "João", "mensalidade": 79.90}
+    prompt = build_crm_prompt("Qual minha fatura?", "billing", dados)
+    assert "billing" in prompt
+    assert "João" in prompt
+    assert "79.9" in prompt
+    assert "Qual minha fatura?" in prompt
+
+
+def test_build_crm_prompt_dados_aninhados():
+    from agent.prompt import build_crm_prompt
+    dados = {"cliente": {"nome": "Ana"}, "elegibilidade": {"pode_trocar": True}}
+    prompt = build_crm_prompt("Posso trocar de plano?", "eligibility", dados)
+    assert "eligibility" in prompt
+    assert "pode_trocar" in prompt
+    assert "Posso trocar de plano?" in prompt
+
+
+def test_build_supervisor_prompt_inclui_dominios():
+    from agent.prompt import build_supervisor_prompt
+    prompt = build_supervisor_prompt("olá")
+    assert "Planos e catálogo" in prompt or "cancelamento" in prompt.lower()
+    assert "olá" in prompt
+
+
+def test_build_not_found_prompt_inclui_instrucoes():
+    from agent.prompt import build_not_found_prompt
+    prompt = build_not_found_prompt("Qual o preço do plano X99?")
+    assert "Qual o preço do plano X99?" in prompt
+    assert "não" in prompt.lower() or "pré-pago" in prompt.lower()
+
+
+def test_judge_nao_flagga_rota_sem_fonte():
+    items = [
+        {
+            "interaction_id": "test-1",
+            "response": "Sua fatura deste mês é de R$ 79,90.",
+            "source_document_id": None,
+            "expects_source": False,
+        }
+    ]
+    findings = judge_batch(items)
+    assert len(findings) == 1
+    assert not findings[0].flagged, f"Esperava não flaggado, mas reasons={findings[0].reasons}"
+
+
+def test_judge_nao_flagga_rag_miss_genuino_do_catalog_agent():
+    """expects_source=True (catalog_agent) mas resposta é honesta 'não encontrei'
+    gerada por build_not_found_prompt() — não deve ser marcada como alucinação
+    nem como dado fabricado, mesmo sem source_document_id.
+    """
+    items = [
+        {
+            "interaction_id": "test-2",
+            "question": "Quais gigas inclui o Plano Diamante Exclusivo da TIM?",
+            "response": not_found_response(),
+            "source_document_id": None,
+            "expects_source": True,
+        }
+    ]
+    findings = judge_batch(items)
+    assert len(findings) == 1
+    assert not findings[0].flagged, f"Esperava não flaggado, mas reasons={findings[0].reasons}"
+
+
+def test_judge_flagga_alucinacao_quando_catalog_agent_inventa_sem_dizer_nao_encontrei():
+    """expects_source=True e resposta afirmativa (sem 'não encontrei') mas sem
+    source_document_id — cenário real de alucinação que o judge deve capturar.
+    """
+    items = [
+        {
+            "interaction_id": "test-3",
+            "question": "Quais gigas inclui o Plano Diamante Exclusivo da TIM?",
+            "response": "O Plano Diamante Exclusivo inclui 500 GB de franquia mensal.",
+            "source_document_id": None,
+            "expects_source": True,
+        }
+    ]
+    findings = judge_batch(items)
+    assert len(findings) == 1
+    assert findings[0].flagged
+    assert any("alucinação" in r for r in findings[0].reasons)

@@ -1,5 +1,14 @@
 services:
+  # ---------------------------------------------------------------------------
+  # Perfil: app
+  # A entrega da PoC — gateway FastAPI que expõe POST /agent/interact e GET /trace.
+  # Depende do perfil infra (mock-services) para funcionar.
+  #
+  # docker compose --profile app up -d
+  # docker compose --profile infra --profile app up -d   (completo)
+  # ---------------------------------------------------------------------------
   app:
+    profiles: ["app"]
     build: .
     ports:
       - "8000:8000"
@@ -10,14 +19,104 @@ services:
       - FLOW_TENANT=${FLOW_TENANT}
       - FLOW_AGENT=${FLOW_AGENT}
       - MOCK_SERVICES_URL=http://mock-services:8001
+      - CHAINLIT_URL=http://chainlit:8080
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=http://langfuse:3000
     volumes:
       - ./chroma_data:/app/chroma_data
       - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
     command: uvicorn gateway.app:app --host 0.0.0.0 --port 8000
     depends_on:
-      - mock-services
+      mock-services:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Perfil: app
+  # UI de demonstração — cliente HTTP do gateway, sem imports internos.
+  # Roda no mesmo Dockerfile do gateway (chainlit_app.py já está no COPY . .).
+  #
+  # docker compose --profile infra --profile app up -d
+  # ---------------------------------------------------------------------------
+  chainlit:
+    profiles: ["app"]
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - GATEWAY_URL=http://app:8000
+    command: chainlit run chainlit_app.py --port 8080 --host 0.0.0.0 --headless
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Perfil: infra
+  # Dependências externas da app: mock dos sistemas TIM + observabilidade.
+  # Representa o que seriam sistemas reais em produção (CRM, agentes de negócio)
+  # e a plataforma de observabilidade (Langfuse).
+  #
+  # docker compose --profile infra up -d
+  # ---------------------------------------------------------------------------
   mock-services:
+    profiles: ["infra"]
     build: ./mock_services
     ports:
       - "8001:8001"
     command: uvicorn app:app --host 0.0.0.0 --port 8001
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Langfuse v2 — dashboard de observabilidade (http://localhost:3000)
+  # Primeira execução: acesse :3000, crie projeto e copie as chaves para .env
+
+  langfuse-db:
+    profiles: ["infra"]
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+    volumes:
+      - langfuse_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    profiles: ["infra"]
+    image: langfuse/langfuse:2
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: poc-tim-langfuse-secret-change-in-prod
+      SALT: poc-tim-langfuse-salt-change-in-prod
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+
+volumes:
+  langfuse_pg_data:
+  hf_cache:

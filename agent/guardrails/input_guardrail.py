@@ -1,17 +1,18 @@
 """Guardrail de input - equivalente simplificado de SPEC-005 (Guardrails).
 
-Mascara PII (CPF, CNPJ, e-mail, telefone) e bloqueia perguntas fora do
+Mascara PII (CPF, CNPJ, cartão, senha/PIN, e-mail, telefone) e bloqueia perguntas fora do
 domínio do catálogo de planos/ofertas, antes de qualquer chamada ao LLM.
 
 Contrato (ver GuardrailResult em agent/models.py):
+- Se o texto contiver linguagem tóxica/ofensiva, bloquear (TOXICITY / BLOCK).
 - Se o texto pedir dados pessoais de terceiros, bloquear (OUT_OF_DOMAIN / BLOCK).
   text retorna o original — o orquestrador descarta, mas fica disponível para auditoria.
-- Se o texto contiver PII (CPF, CNPJ, e-mail ou telefone), mascarar toda
+- Se o texto contiver PII (CPF, CNPJ, cartão, senha/PIN, e-mail ou telefone), mascarar toda
   ocorrência em cadeia e retornar Violation.PII / Action.MASK.
 - Caso contrário, retornar Violation.NONE / Action.ALLOW com o texto original.
 
-Ordem de verificação: OUT_OF_DOMAIN antes de PII — evitar mascarar antes de
-detectar que a pergunta inteira deve ser bloqueada.
+Ordem de verificação: TOXICITY → OUT_OF_DOMAIN → PII — a verificação mais grave
+primeiro, evitar mascarar antes de detectar que a mensagem deve ser bloqueada.
 """
 
 import re
@@ -31,12 +32,33 @@ _PHONE_RE = re.compile(
     r"(?!\d)"
 )
 
+_CARD_RE = re.compile(r"(?<!\d)\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}(?!\d)")
+_SENHA_RE = re.compile(
+    r"\b(senha|pin|c[oó]digo(?:\s+de\s+acesso)?)\b[\s:]+\d{4,6}\b",
+    re.IGNORECASE,
+)
+
 _PII_RULES: list[tuple[re.Pattern, str]] = [
-    (_CNPJ_RE, "**.***.****/****-**"),
-    (_CPF_RE,  "***.***.***-**"),
+    (_CNPJ_RE,  "**.***.****/****-**"),
+    (_CPF_RE,   "***.***.***-**"),
+    (_CARD_RE,  "**** **** **** ****"),
     (_EMAIL_RE, "***@***.***"),
     (_PHONE_RE, "(**) *****-****"),
+    (_SENHA_RE, r"\1 ******"),
 ]
+
+# --- Toxicity patterns -------------------------------------------------------
+# Detecta linguagem ofensiva, ameaças e discurso de ódio antes de qualquer
+# outra verificação — mensagens tóxicas são bloqueadas sem mascaramento.
+
+_TOXICITY_RE = re.compile(
+    r"\b(idiota|imbecil|burro|estúpido|otário|cretino|inútil|"
+    r"merda|bosta|porra|caralho|desgraça|maldito|maldita|"
+    r"morre|matar|morte|ameaça|explodir|bomba|destruir|"
+    r"ódio|raiva|nojento|nojenta|racista|fascista|nazista|"
+    r"lixo\s+de\s+empresa|empresa\s+do\s+inferno)\b",
+    re.IGNORECASE,
+)
 
 # --- Out-of-domain patterns -------------------------------------------------
 
@@ -50,6 +72,15 @@ _OUT_OF_DOMAIN_PATTERNS = [
 
 
 def check_input(text: str) -> GuardrailResult:
+    # 0. Bloqueia linguagem tóxica/ofensiva — verificação mais grave, executada primeiro
+    if _TOXICITY_RE.search(text):
+        return GuardrailResult(
+            guardrail_type="input",
+            violation=Violation.TOXICITY,
+            action_taken=Action.BLOCK,
+            text=text,  # original preservado para auditoria
+        )
+
     # 1. Bloqueia perguntas fora do domínio antes de qualquer mascaramento
     for pattern in _OUT_OF_DOMAIN_PATTERNS:
         if pattern.search(text):

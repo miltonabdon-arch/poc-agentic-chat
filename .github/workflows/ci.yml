@@ -6,6 +6,16 @@ on:
   pull_request:
     branches: ["**"]
 
+env:
+  # agent_framework não é publicado no PyPI (ver STATE.md, B-007) — instalado
+  # direto do repositório público, pinado num commit específico para
+  # reprodutibilidade. --no-deps porque a PoC só usa channels/routing/
+  # observability, cujos imports de topo não requerem as dependências
+  # pesadas do pyproject.toml completo (oracledb, oci, pymongo, redis,
+  # motor, google-cloud-pubsub, mcp, langfuse) — confirmado por leitura do
+  # código-fonte real em 2026-08-19.
+  AGENT_FRAMEWORK_REF: f9c66b4792ac9fd63d7397dbab3bcac310e4d780
+
 jobs:
   lint:
     name: Lint
@@ -16,6 +26,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - run: pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@${{ env.AGENT_FRAMEWORK_REF }}#subdirectory=libs/agent_framework"
       - run: ruff check .
 
   test:
@@ -27,6 +38,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - run: pip install --no-deps "git+https://github.com/hoshikawa2/agent_platform_oci.git@${{ env.AGENT_FRAMEWORK_REF }}#subdirectory=libs/agent_framework"
       - run: pytest -m "not integration" --cov=. --cov-report=term-missing
 
   build:

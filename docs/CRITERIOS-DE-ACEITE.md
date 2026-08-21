@@ -8,8 +8,10 @@ sem qualquer dependência de nuvem ou credencial de produção.
 
 - [ ] `python scripts/run_ingestao.py` processa `data/catalogo/` sem erro
       (Chroma embutido, sem serviço externo)
-- [ ] `docker compose up -d` sobe o serviço FastAPI sem erro
-- [ ] `curl localhost:8000/health` retorna 200
+- [ ] `make up` sobe mock-services + langfuse + gateway + chainlit sem erro
+- [ ] `curl localhost:8000/health` retorna 200 (gateway)
+- [ ] `curl localhost:8001/health` retorna 200 (mock services)
+- [ ] `curl localhost:8080/health` retorna 200 (chainlit)
 
 ## 2. Ingestão
 
@@ -45,6 +47,13 @@ sem qualquer dependência de nuvem ou credencial de produção.
 - [ ] Cada interação das seções 3-5 aparece no trace/log de observabilidade
       com: latência total, guardrails acionados (se algum), `chunk_id`
       usado (quando aplicável)
+- [ ] UI Chainlit exibe cada nó e sub-componente do pipeline como step
+      expansível em tempo real, com ícone por tipo de evento
+      (⚙️ FLOW · 🤖 LLM · 🔍 RAG · 🎭 MOCK · ✅ NOC · 🛡️ GRL · ⚖️ JUDGE · 🗺️ GRAPH · 🏁 ORCH · 📊 STATE),
+      TaskList com 5 fases avançando conforme o grafo executa e
+      δ do GraphState exibido após cada nó como step compacto
+- [ ] (Opcional) Dashboard Langfuse em `http://localhost:3000` mostra traces
+      completos quando `LANGFUSE_PUBLIC_KEY` está configurado no `.env`
 
 ## 7. Pipeline CI
 

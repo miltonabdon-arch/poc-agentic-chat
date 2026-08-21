@@ -12,6 +12,7 @@ chroma_data/
 htmlcov/
 .coverage
 *.md
+!chainlit.md
 docs/
 tests/
 scripts/

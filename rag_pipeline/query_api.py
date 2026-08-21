@@ -31,7 +31,7 @@ from rag_pipeline.models import QueryResult
 from rag_pipeline.vectorizer import get_collection
 
 _DEFAULT_COLLECTION = "catalogo_poc"
-_DEFAULT_THRESHOLD = 0.7  # TODO (Data Engineer): calibrar empiricamente  
+_DEFAULT_THRESHOLD = 0.60  # calibrado empiricamente: bge-reranker-v2-m3 em português dá scores em ~0.55–0.70 para matches relevantes
 _RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
 _reranker: CrossEncoder | None = None
@@ -40,7 +40,7 @@ _reranker: CrossEncoder | None = None
 def _get_reranker() -> CrossEncoder:
     global _reranker
     if _reranker is None:
-        _reranker = CrossEncoder(_RERANKER_MODEL)
+        _reranker = CrossEncoder(_RERANKER_MODEL, device="cpu")
     return _reranker
 
 
