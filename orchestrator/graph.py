@@ -297,7 +297,7 @@ async def node_supervisor(state: GraphState) -> GraphState:
     await trace_interaction("NOC", msg, {"node": "supervisor"})
     try:
         from agent.prompt import build_supervisor_prompt, build_system_prompt
-        prompt = build_supervisor_prompt(msg.text)
+        prompt = build_supervisor_prompt(state["sanitized_input"])
         answer = await _call_llm_and_trace(prompt, msg, system=build_system_prompt())
         await trace_flow("EXIT", "node.supervisor", msg, {"status": "OK"})
     except Exception as exc:
