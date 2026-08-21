@@ -30,7 +30,7 @@ _REPO_ROOT = pathlib.Path(__file__).parent.parent
 def get_client(persist_path: str | None = None) -> chromadb.ClientAPI:
     path = persist_path or str(_REPO_ROOT / "chroma_data")
     return chromadb.PersistentClient(path=path)
-    
+
 
 def get_collection(client: chromadb.ClientAPI, name: str = _DEFAULT_COLLECTION):
     return client.get_or_create_collection(
@@ -56,6 +56,7 @@ def vectorize_and_store(client: chromadb.ClientAPI, chunk: Chunk, collection_nam
             "section": chunk.section,
             "nome_plano": chunk.nome_plano,
             "status": chunk.status,
+            "version": chunk.version,
         }],
     )
 

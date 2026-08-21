@@ -18,9 +18,9 @@ from rag_pipeline.models import Chunk, ExtractedDocument
 
 
 def enrich(document: ExtractedDocument, raw_chunk: dict) -> Chunk:
-    
+
     return Chunk(
-        chunk_id=f"{document.source_document_id}#{raw_chunk['section']}",
+        chunk_id=f"{document.source_document_id}#{raw_chunk['section']}_{raw_chunk['window_index']}",
         text=f"{raw_chunk['section']} {document.metadata['nome']} (ID: {document.metadata['plano_id']}): {raw_chunk['text']}",
         source_document_id=document.source_document_id,
         plano_id=document.metadata["plano_id"],
@@ -30,5 +30,3 @@ def enrich(document: ExtractedDocument, raw_chunk: dict) -> Chunk:
         nome_plano=document.metadata["nome"],
         status="active"
       )
-
-

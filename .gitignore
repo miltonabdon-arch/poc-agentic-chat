@@ -15,6 +15,7 @@ ESCOPO TÉCNICO.txt
 .chainlit/
 gw_err.log
 gw.log
+chunk_audit.db
 mock_err.txt
 mock_out.txt
 .files/

@@ -63,7 +63,7 @@ def query(
     if collection.count() == 0:
         return QueryResult(found=False, chunk_id=None, text=None, source_document_id=None, confidence_score=0.0)
 
-    n = min(5, collection.count())
+    n = min(7, collection.count())
     results = collection.query(query_texts=[text], n_results=n, include=["documents", "metadatas", "distances"])
 
     candidates = [
