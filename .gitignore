@@ -19,3 +19,6 @@ mock_err.txt
 mock_out.txt
 .files/
 vendor/
+scripts/test_flow.py
+scripts/flow_token.py
+agent_framework/

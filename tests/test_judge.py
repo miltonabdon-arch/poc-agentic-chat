@@ -1,9 +1,19 @@
-"""Testes do judge leve offline (agent/judge.py)."""
+"""Testes do judge leve offline (agent/judge.py).
+
+Organização:
+  - Seção 1: testes de judge_batch (interface legada, compatibilidade com graph.py)
+  - Seção 2: testes de pipeline.evaluate_all (interface JudgePipeline, alinhada ao
+      agent_framework — ver L-003). Mesma lógica, contrato assíncrono diferente.
+"""
+
+import pytest
 
 from agent.judge import (
     _MIN_RESPONSE_CHARS,
     JudgeFinding,
+    JudgeResult,
     judge_batch,
+    pipeline,
 )
 from agent.prompt import not_found_response
 
@@ -266,3 +276,102 @@ def test_judge_batch_retorna_um_finding_por_interacao():
 
 def test_judge_batch_lista_vazia():
     assert judge_batch([]) == []
+
+
+# ===========================================================================
+# Seção 2: JudgePipeline / evaluate_all — interface alinhada ao framework
+# ===========================================================================
+# Testa o mesmo comportamento dos 7 checks via contrato assíncrono.
+# Objetivo: garantir que a migração de judge_batch → evaluate_all (L-003)
+# não regride nenhum caso de negócio, e que node_judge pode adotar
+# evaluate_all sem perda de cobertura.
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_pipeline_retorna_lista_de_judge_results():
+    results = await pipeline.evaluate_all(
+        question="Quais são os planos da TIM?",
+        answer="O TIM Turbo 40GB inclui 40GB de dados.",
+        context={"source_document_id": "turbo-40gb"},
+    )
+    assert isinstance(results, list)
+    assert all(isinstance(r, JudgeResult) for r in results)
+    assert all(hasattr(r, "name") and hasattr(r, "passed") and hasattr(r, "score") for r in results)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_passa_resposta_com_fonte():
+    results = await pipeline.evaluate_all(
+        question="Quais gigas o Turbo 40GB tem?",
+        answer="O Turbo 40GB inclui 40GB de dados 4G/5G.",
+        context={"source_document_id": "turbo-40gb"},
+    )
+    failed = [r for r in results if not r.passed]
+    assert not failed, f"Esperava tudo passando, mas falhou: {[r.name for r in failed]}"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_flagga_groundedness_sem_fonte():
+    results = await pipeline.evaluate_all(
+        question="Quais gigas o Turbo 40GB tem?",
+        answer="O Turbo 40GB inclui 40GB de dados 4G/5G.",
+        context={"source_document_id": None, "expects_source": True},
+    )
+    groundedness = next(r for r in results if r.name == "groundedness")
+    assert not groundedness.passed
+    assert groundedness.score == 0.0
+
+
+@pytest.mark.asyncio
+async def test_pipeline_nao_flagga_dominios_crm_sem_fonte():
+    """expects_source=False: billing/eligibility/simulation não usam RAG."""
+    results = await pipeline.evaluate_all(
+        question="Qual minha fatura?",
+        answer="Sua fatura deste mês é de R$ 79,90.",
+        context={"source_document_id": None, "expects_source": False},
+    )
+    groundedness = next(r for r in results if r.name == "groundedness")
+    fabricated = next(r for r in results if r.name == "fabricated_data")
+    assert groundedness.passed, "domínio CRM não deve ser flaggado por groundedness"
+    assert fabricated.passed, "domínio CRM não deve ser flaggado por fabricated_data"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_flagga_not_found_consistency():
+    results = await pipeline.evaluate_all(
+        question="Quais gigas o Turbo 40GB tem?",
+        answer="Não encontrei essa informação no catálogo.",
+        context={"source_document_id": "turbo-40gb"},
+    )
+    nfc = next(r for r in results if r.name == "not_found_consistency")
+    assert not nfc.passed
+
+
+@pytest.mark.asyncio
+async def test_pipeline_judge_result_tem_reason_quando_falha():
+    results = await pipeline.evaluate_all(
+        question="Quais gigas o Turbo 40GB tem?",
+        answer="Não encontrei essa informação no catálogo.",
+        context={"source_document_id": "turbo-40gb"},
+    )
+    failed = [r for r in results if not r.passed]
+    assert all(r.reason for r in failed), "todo JudgeResult que falha deve ter reason preenchido"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_cobre_os_7_checks():
+    """Garante que evaluate_all retorna exatamente 7 JudgeResults — um por check."""
+    results = await pipeline.evaluate_all(
+        question="Pergunta qualquer",
+        answer="Resposta qualquer sobre planos da TIM.",
+        context={"source_document_id": "qualquer-doc"},
+    )
+    assert len(results) == 7
+    nomes = {r.name for r in results}
+    esperados = {
+        "empty_response", "groundedness", "not_found_consistency",
+        "length_anomaly", "unwarranted_deflection", "topic_coherence",
+        "fabricated_data",
+    }
+    assert nomes == esperados

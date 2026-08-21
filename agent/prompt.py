@@ -66,10 +66,14 @@ Você é o Assistente Virtual da TIM, especializado em planos e ofertas de telef
 
 Regras de comportamento:
 - Responda APENAS com base nas evidências fornecidas em [CONTEXTO]. Nunca invente informações.
-- Jamais mencione concorrentes pelo nome.
+- Jamais fabricar nomes de clientes, CPFs, valores monetários ou datas que não estejam
+  explicitamente no [CONTEXTO]. Se não estiver lá, não cite.
+- Escreva em prosa fluida, como se estivesse falando — sem listas, sem marcadores,
+  sem markdown, sem colchetes ou símbolos especiais.
 - Refira-se ao plano pelo nome natural presente na evidência, nunca pelo ID técnico.
 - Se a informação não estiver disponível em [CONTEXTO], diga claramente que não encontrou.
-- Seja objetivo, cordial e direto.\
+- Seja objetivo, cordial e direto.
+- Limite sua resposta a no máximo 3 frases. Prefira respostas concisas.\
 """
 
 
@@ -88,7 +92,7 @@ def build_system_prompt() -> str:
 
 _NOT_FOUND_MSG = (
     "Não encontrei essa informação no catálogo de planos e ofertas disponível. "
-    "Por favor, consulte um atendente ou acesse o site oficial da TIM para mais detalhes."
+    "Posso ajudar com dúvidas sobre planos, pacotes de dados, benefícios ou cobertura da TIM."
 )
 
 
@@ -97,10 +101,7 @@ def not_found_response() -> str:
 
 
 def build_not_found_prompt(question: str) -> str:
-    """Monta prompt para quando o RAG não encontrou resultado acima do threshold.
-
-    O LLM deve orientar o cliente sem inventar dados de planos.
-    """
+    """Monta prompt para quando o RAG não encontrou resultado acima do threshold."""
     return (
         "[CONTEXTO]\n"
         "Não foi encontrado nenhum plano ou oferta específica correspondente "
@@ -114,11 +115,7 @@ def build_not_found_prompt(question: str) -> str:
 
 
 def build_supervisor_prompt(question: str) -> str:
-    """Monta prompt para o nó supervisor — saudações e intenções não mapeadas.
-
-    Usado quando o roteador não identificou um domínio específico.
-    O LLM responde de forma natural e orienta o cliente para os domínios disponíveis.
-    """
+    """Monta prompt para o nó supervisor — saudações e intenções não mapeadas."""
     return (
         "[PAPEL]\n"
         "Você é o Assistente Virtual da TIM. O cliente iniciou uma conversa "
@@ -135,12 +132,7 @@ def build_supervisor_prompt(question: str) -> str:
 
 
 def build_crm_prompt(question: str, intent: str, api_data: dict) -> str:
-    """Monta prompt (role:user) para intents baseados em dados CRM.
-
-    Diferente de build_prompt(), não exige QueryResult — o contexto
-    é o JSON estruturado retornado pelas APIs de negócio (billing,
-    eligibility, simulation).
-    """
+    """Monta prompt (role:user) para intents baseados em dados CRM."""
     import json
     context = json.dumps(api_data, ensure_ascii=False, indent=2)
     return (
@@ -185,9 +177,15 @@ def build_prompt(
             tool_lines.append(f"- {t.name}: {t.description}")
         sections.append("\n".join(tool_lines))
 
+    confidence = query_result.confidence_score
+    confidence_note = (
+        " (confiança baixa — seja mais cauteloso ao afirmar detalhes)"
+        if confidence < 0.5
+        else ""
+    )
     context_lines = [
         "[CONTEXTO]",
-        f"[fonte interno: {query_result.source_document_id}]",
+        f"[fonte interno: {query_result.source_document_id}{confidence_note}]",
         f"Evidência: {query_result.text}",
     ]
     if api_results:

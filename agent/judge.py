@@ -14,7 +14,24 @@ proxies offline:
   6. topic_coherence        — baixo overlap de keywords entre pergunta e resposta
   7. fabricated_data        — nomes proprios/valores monetarios sem fonte
 
-Contrato:
+Interfaces disponíveis
+----------------------
+**judge_batch(interactions)** — interface original (lote de dicts). Mantida
+  para compatibilidade com o node_judge atual do orchestrator/graph.py.
+  Será descontinuada quando Igor migrar node_judge para JudgePipeline.
+
+**pipeline.evaluate_all(question, answer, context)** — interface alinhada ao
+  agent_framework real (JudgePipeline / JudgeResult). Mesma lógica dos 7
+  checks, exposta de forma assíncrona e compatível com o contrato do
+  framework. Esta é a interface de destino para o projeto real (L-003).
+
+  Contexto histórico: L-003 identificou que agent/judge.py ❌ Reinventado —
+  os checks ad-hoc têm equivalentes prontos no framework (GroundednessJudge,
+  ResponseQualityJudge). A migração completa exige coordenação com o
+  AI Dev Sr (Igor) para atualizar node_judge em orchestrator/graph.py.
+  Enquanto isso, ambas as interfaces coexistem neste módulo.
+
+Contrato judge_batch:
 - interactions: lista de dict com chaves:
     "interaction_id" (str)
     "question"       (str, opcional) — pergunta original do cliente
@@ -26,10 +43,18 @@ Contrato:
       alucinação nem como dado fabricado.
 - Retorna lista de JudgeFinding, uma por interacao, com todos os problemas
   encontrados (lista vazia se passou em todos os checks).
+
+Contrato pipeline.evaluate_all:
+- question (str): pergunta original do cliente
+- answer   (str): resposta gerada pelo agente
+- context  (dict): chaves opcionais — source_document_id, interaction_id,
+    expects_source (default True)
+- Retorna lista de JudgeResult (name, score, passed, reason)
 """
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Padrões compilados
@@ -198,6 +223,9 @@ def judge_batch(interactions: list[dict]) -> list[JudgeFinding]:
 
     Acumula TODOS os problemas encontrados (não para no primeiro). Use
     finding.flagged para filtrar e finding.reasons para ver todos os motivos.
+
+    Interface legada — mantida para compatibilidade com node_judge em
+    orchestrator/graph.py. Prefer pipeline.evaluate_all() para novas integrações.
     """
     findings = []
     for interaction in interactions:
@@ -209,3 +237,80 @@ def judge_batch(interactions: list[dict]) -> list[JudgeFinding]:
             reasons=reasons,
         ))
     return findings
+
+
+# ---------------------------------------------------------------------------
+# Interface JudgePipeline — alinhada ao agent_framework (L-003)
+# ---------------------------------------------------------------------------
+# Migração para o framework real documentada em L-003: judge_batch é
+# ❌ Reinventado; JudgePipeline é o contrato de destino. Esta seção
+# expõe os mesmos 7 checks via interface assíncrona compatível com o
+# framework, sem remover judge_batch enquanto node_judge não for migrado.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class JudgeResult:
+    """Resultado por check — espelha agent_framework.judges.judge.JudgeResult."""
+    name: str
+    score: float      # 0.0 = falhou, 1.0 = passou
+    passed: bool
+    reason: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def _interaction_from_context(question: str, answer: str, context: dict) -> dict:
+    """Constrói o dict de interação que os _CHECKS esperam."""
+    return {
+        "interaction_id": context.get("interaction_id", "pipeline"),
+        "question": question,
+        "response": answer,
+        "source_document_id": context.get("source_document_id"),
+        "expects_source": context.get("expects_source", True),
+    }
+
+
+class JudgePipeline:
+    """Pipeline de judges determinísticos alinhado ao contrato do agent_framework.
+
+    Reutiliza internamente os _CHECKS existentes — sem duplicar lógica.
+    A interface assíncrona (evaluate_all) é compatível com o framework real,
+    permitindo que node_judge migre de judge_batch para evaluate_all sem
+    reescrever os checks.
+
+    Uso:
+        results = await pipeline.evaluate_all(question, answer, context)
+        failed  = [r for r in results if not r.passed]
+    """
+
+    _CHECK_NAMES = [
+        "empty_response",
+        "groundedness",
+        "not_found_consistency",
+        "length_anomaly",
+        "unwarranted_deflection",
+        "topic_coherence",
+        "fabricated_data",
+    ]
+
+    async def evaluate_all(
+        self,
+        question: str,
+        answer: str,
+        context: dict | None = None,
+    ) -> list[JudgeResult]:
+        interaction = _interaction_from_context(question, answer, context or {})
+        results = []
+        for check, name in zip(_CHECKS, self._CHECK_NAMES):
+            reason = check(interaction)
+            passed = reason is None
+            results.append(JudgeResult(
+                name=name,
+                score=1.0 if passed else 0.0,
+                passed=passed,
+                reason=reason or "",
+            ))
+        return results
+
+
+pipeline = JudgePipeline()
