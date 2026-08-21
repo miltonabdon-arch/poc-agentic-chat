@@ -100,6 +100,47 @@ def not_found_response() -> str:
     return _NOT_FOUND_MSG
 
 
+def build_not_found_prompt(question: str) -> str:
+    """Monta prompt para quando o RAG não encontrou resultado acima do threshold."""
+    return (
+        "[CONTEXTO]\n"
+        "Não foi encontrado nenhum plano ou oferta específica correspondente "
+        "à pergunta do cliente no catálogo disponível. Não invente dados.\n\n"
+        "[INSTRUÇÕES]\n"
+        "Informe cordialmente que não localizou esse plano específico. "
+        "Sugira que o cliente especifique melhor a necessidade ou pergunte "
+        "sobre as categorias disponíveis: pré-pago, controle ou turbo.\n\n"
+        f"[PERGUNTA DO CLIENTE]\n{question}"
+    )
+
+
+def build_supervisor_prompt(question: str) -> str:
+    """Monta prompt para o nó supervisor — saudações e intenções não mapeadas."""
+    return (
+        "[PAPEL]\n"
+        "Você é o Assistente Virtual da TIM. O cliente iniciou uma conversa "
+        "sem especificar um domínio claro, ou fez uma saudação.\n\n"
+        "[DOMÍNIOS QUE VOCÊ ATENDE]\n"
+        "- Planos e catálogo (dados, ligações, benefícios)\n"
+        "- Fatura e cobrança\n"
+        "- Cancelamento de serviço\n"
+        "- Negociação de débito\n"
+        "- Simulação de troca de plano\n"
+        "- Elegibilidade para upgrade\n\n"
+        f"[MENSAGEM DO CLIENTE]\n{question}"
+    )
+
+
+def build_crm_prompt(question: str, intent: str, api_data: dict) -> str:
+    """Monta prompt (role:user) para intents baseados em dados CRM."""
+    import json
+    context = json.dumps(api_data, ensure_ascii=False, indent=2)
+    return (
+        f"[CONTEXTO CRM — {intent}]\n{context}\n\n"
+        f"[PERGUNTA DO CLIENTE]\n{question}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Builder principal
 # ---------------------------------------------------------------------------
